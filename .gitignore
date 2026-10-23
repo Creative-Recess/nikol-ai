@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Athlete data: personal health data, never committed
+athlete/
+
+# Personal agent settings and worktrees
+.claude/settings.local.json
+.claude/worktrees/
+
+# FIT files and uploads (personal data)
+**/uploads/*.fit
+**/uploads/*.FIT
+
+# Local environment
+.env

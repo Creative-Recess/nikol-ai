@@ -1,0 +1,29 @@
+{
+  "current_event": "sample-event",
+  "updated": null,
+  "note": "Changing any value here is a coaching event. Record why in athlete/decision-log.md. Fill in the nulls during setup: from intervals.icu sport settings where possible, otherwise from a recent race with scripts/paces.py.",
+  "vdot": null,
+  "vdot_source": null,
+  "run": {
+    "max_hr": null,
+    "threshold_hr": null,
+    "threshold_pace": null,
+    "easy_hr_cap": null,
+    "easy_target": "69-86% LTHR",
+    "paces_per_km": {
+      "easy": null,
+      "race_goal": null,
+      "threshold": null,
+      "interval": null
+    }
+  },
+  "ride": {
+    "ftp": null,
+    "threshold_hr": null
+  },
+  "injury_score": {
+    "name": null,
+    "side": null,
+    "note": "The body part scored 0-10 each morning and logged as 'name: N' in intervals.icu wellness comments (icu.py score N). Quality work pauses if any score in the last 7 days is above 3/10 or the weekly average is rising. Leave name null to not track one."
+  }
+}

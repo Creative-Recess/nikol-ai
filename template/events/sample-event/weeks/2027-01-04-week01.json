@@ -1,0 +1,78 @@
+{
+  "week": 1,
+  "start": "2027-01-04",
+  "sessions": [
+    {
+      "id": "week",
+      "date": "2027-01-04",
+      "category": "NOTE",
+      "kind": "note",
+      "name": "Week 1: 22 km, long run 10 km",
+      "description": "22 km over 3 runs: Tue easy 6 km, Thu easy 6 km with strides, Sun long 10 km.\nRides: Sat group ride (NP at or below 200 W).\nRest day: Mon 4 Jan.\nStrength: A Wed evening, C Tue after the run.\nIf you track an injury score, log it every morning."
+    },
+    {
+      "id": "rest",
+      "date": "2027-01-04",
+      "category": "NOTE",
+      "kind": "recovery",
+      "name": "Rest day + recovery",
+      "description": "Rest day: no run, no ride, no leg strength.\n10 min mobility and an early night.\nThis week's recovery: sauna after the Thursday run and the long run."
+    },
+    {
+      "id": "run",
+      "date": "2027-01-05",
+      "category": "WORKOUT",
+      "type": "Run",
+      "kind": "easy",
+      "strength": "C",
+      "name": "Easy 6 km + Strength C (upper)",
+      "distance_km": 6,
+      "target": "HR",
+      "description": "Easy, conversational. Then Strength C (upper body, about 20 min).\n\n- 6km 69-86% LTHR"
+    },
+    {
+      "id": "strength",
+      "date": "2027-01-06",
+      "category": "NOTE",
+      "kind": "strength",
+      "strength": "A",
+      "time": "evening",
+      "name": "Strength A (evening)",
+      "description": "Full legs, about 40 min: single-leg calf raises, bent-knee calf raises, split squats, single-leg RDLs."
+    },
+    {
+      "id": "run",
+      "date": "2027-01-07",
+      "category": "WORKOUT",
+      "type": "Run",
+      "kind": "easy",
+      "strides": true,
+      "name": "Easy 6 km + strides",
+      "distance_km": 6,
+      "target": "HR",
+      "description": "Easy. Finish with 6x20 s strides on flat ground, walk back between. Sauna after.\n\n- 6km 69-86% LTHR"
+    },
+    {
+      "id": "ride",
+      "date": "2027-01-09",
+      "category": "NOTE",
+      "kind": "ride",
+      "name": "Group ride",
+      "description": "Aerobic: NP at or below 200 W. The long run is tomorrow, so if it isn't easy, a ride before the long run needs a logged exception."
+    },
+    {
+      "id": "run",
+      "date": "2027-01-10",
+      "category": "WORKOUT",
+      "type": "Run",
+      "kind": "long",
+      "name": "Long run 10 km",
+      "distance_km": 10,
+      "target": "HR",
+      "description": "Easy the whole way, walk the climbs if needed to stay under the cap. Sauna after.\n\n- 10km 69-86% LTHR"
+    }
+  ],
+  "exceptions": {
+    "ride_before_long_run": "Example: an easy group ride before an easy 10 km long run in a base week"
+  }
+}

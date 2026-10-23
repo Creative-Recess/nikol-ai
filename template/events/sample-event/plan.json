@@ -1,0 +1,31 @@
+{
+  "event": "Sample City Marathon",
+  "race_date": "2027-05-30",
+  "race_start": "07:00",
+  "race_distance_m": 42195,
+  "goal": "3:45:00",
+  "fallback": "sub 4:00",
+  "race_note": "Example event. Replace with the real race: course, start time and pacing notes.",
+  "baseline_long_run_km": 10,
+  "source": "event-details.md (the race, goal, reasoning and race day guide). Keep the two in sync.",
+  "unavailable": [
+    {"date": "2027-01-16", "note": "Example: a wedding"}
+  ],
+  "schedule": {
+    "office_days": ["Mon", "Wed", "Thu", "Fri"],
+    "wfh_days": ["Tue"],
+    "office_start": "06:15",
+    "office_done_by": "08:00"
+  },
+  "holidays": {
+    "2027-01-01": "New Year's Day"
+  },
+  "weeks": [
+    {"week": 1, "start": "2027-01-04", "run_km": 22, "long_run_km": 10, "phase": "Base", "key": "Easy running, strides on Thursday", "rides": "Sat group ride"},
+    {"week": 2, "start": "2027-01-11", "run_km": 25, "long_run_km": 11, "phase": "Base", "key": "Easy running, strides on Thursday", "rides": "Sat group ride"},
+    {"week": 3, "start": "2027-01-18", "run_km": 20, "long_run_km": 9, "down_week": true, "phase": "Base", "key": "Down week"}
+  ],
+  "checkpoints": [
+    {"date": "2027-02-17", "event": "5 km time trial on a flat loop", "on_track": "24:30", "vdot": 40}
+  ]
+}
