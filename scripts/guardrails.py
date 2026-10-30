@@ -128,6 +128,7 @@ def check_long_runs(history: list[tuple[dt.date, float]], planned: list[tuple[dt
     """No run more than 10% longer than the longest run in the previous 30 days."""
     timeline = sorted(history + planned)
     planned_set = set(planned)
+    errors_before = len(report.errors)
     for i, (day, km) in enumerate(timeline):
         if (day, km) not in planned_set:
             continue
@@ -139,7 +140,7 @@ def check_long_runs(history: list[tuple[dt.date, float]], planned: list[tuple[dt
         if km > limit + 1e-9:
             report.errors.append(f"{day}: {km:g} km is more than 10% over the 30-day longest run ({max(prior):g} km, limit {limit:.1f} km)")
     longest = max((k for _, k in planned), default=0)
-    if planned:
+    if planned and len(report.errors) == errors_before:
         report.passes.append(f"Long-run rule: longest planned run {longest:g} km is within 10% of the 30-day max")
 
 

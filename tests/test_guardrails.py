@@ -37,6 +37,17 @@ class LongRunTest(unittest.TestCase):
         g.check_long_runs([(D(2026, 9, 9), 9.1)], [(D(2026, 10, 4), 12.0)], report)
         self.assertFalse(report.ok)
 
+    def test_failure_has_no_pass_line(self):
+        report = g.Report()
+        g.check_long_runs([(D(2026, 9, 9), 9.1)], [(D(2026, 10, 4), 12.0)], report)
+        self.assertEqual(report.passes, [])
+
+    def test_pass_ignores_earlier_failures(self):
+        report = g.Report()
+        report.errors.append("an earlier check failed")
+        g.check_long_runs([(D(2026, 9, 9), 9.1)], [(D(2026, 10, 4), 10.0)], report)
+        self.assertEqual(len(report.passes), 1)
+
     def test_runs_older_than_30_days_dont_count(self):
         report = g.Report()
         g.check_long_runs([(D(2026, 7, 19), 19.0), (D(2026, 9, 9), 9.1)], [(D(2026, 10, 4), 15.0)], report)
