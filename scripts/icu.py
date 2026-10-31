@@ -8,6 +8,7 @@ Usage:
     python3 scripts/icu.py runs --days 42            # recent runs, one per line
     python3 scripts/icu.py rides --days 42           # recent rides: time, climbing, NP, IF, load, HR
     python3 scripts/icu.py swims --days 42           # recent swims: distance, time, pace per 100 m, HR
+    python3 scripts/icu.py fitness --days 28         # fitness (CTL), fatigue (ATL), form and ramp rate, all sports
     python3 scripts/icu.py weeks --days 84           # weekly run km, run count, longest run, ride km, swim km
     python3 scripts/icu.py wellness --days 14        # HRV, resting HR, sleep, injury score
     python3 scripts/icu.py score 2 [--date DATE]     # log the morning injury score (default today)
@@ -228,7 +229,8 @@ def overview_events(plan: dict, detailed_starts: set[str]) -> list[dict]:
         return out  # a training block with no race yet
     goal = f"Goal {plan['goal']}." if plan.get("goal") else None
     fallback = f"Anything {plan['fallback']} is a good result." if plan.get("fallback") else None
-    race_type = plan.get("race_type") or plan_sports[0].name
+    # intervals.icu has no triathlon event type, so a multi-sport race is "Other" unless the plan says otherwise.
+    race_type = plan.get("race_type") or (plan_sports[0].name if len(plan_sports) == 1 else "Other")
     out.append({
         "category": "RACE_A",
         "type": race_type,
@@ -406,6 +408,17 @@ def print_wellness(days: int) -> None:
               f"{(r.get('comments') or '').strip()[:40]}")
 
 
+def print_fitness(days: int) -> None:
+    """intervals.icu's fitness (CTL), fatigue (ATL), form and ramp rate, across all sports."""
+    oldest, newest = _window(days)
+    print("date        fitness  fatigue  form  ramp/week")
+    for r in wellness(oldest, newest):
+        ctl, atl, ramp = r.get("ctl"), r.get("atl"), r.get("rampRate")
+        if ctl is None or atl is None:
+            continue
+        print(f"{r['id']}  {ctl:7.1f}  {atl:7.1f}  {ctl - atl:4.0f}  {ramp if ramp is None else f'{ramp:9.1f}'}")
+
+
 def _window(days: int) -> tuple[str, str]:
     today = dt.date.today()
     return str(today - dt.timedelta(days=days)), str(today)
@@ -415,9 +428,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("athlete")
-    for name in ("runs", "rides", "swims", "weeks", "wellness"):
+    for name in ("runs", "rides", "swims", "weeks", "wellness", "fitness"):
         p = sub.add_parser(name)
-        p.add_argument("--days", type=int, default={"runs": 42, "rides": 42, "swims": 42, "weeks": 84, "wellness": 14}[name])
+        p.add_argument("--days", type=int,
+                       default={"runs": 42, "rides": 42, "swims": 42, "weeks": 84, "wellness": 14, "fitness": 28}[name])
     p_score = sub.add_parser("score", help="Log the morning injury score in wellness comments")
     p_score.add_argument("score", type=float)
     p_score.add_argument("--date", default=str(dt.date.today()))
@@ -442,6 +456,8 @@ def main() -> None:
             print_rides(args.days)
         elif args.command == "swims":
             print_swims(args.days)
+        elif args.command == "fitness":
+            print_fitness(args.days)
         elif args.command == "weeks":
             print_weeks(args.days)
         elif args.command == "wellness":

@@ -32,7 +32,7 @@ They add to these rules and can tighten them, but never loosen an enforced one.
 ## Rides
 
 1. **(enforced) No ride the day before a key run session, or before a long run without a logged exception.**
-   This covers rides written as notes and ride workouts.
+   This covers rides written as notes and ride workouts (in a plan that also coaches cycling, only hard ride workouts: see "Triathlon").
    A ride before an easy long run can be allowed in a week file with `"exceptions": {"ride_before_long_run": "..."}`.
    Key sessions never get an exception.
 2. Going over a ride's target gets flagged in the weekly review, because group rides overriding the plan is a common pattern.
@@ -51,6 +51,19 @@ They add to these rules and can tighten them, but never loosen an enforced one.
    Check the conditions (currents, swell, water temperature, water quality after rain) before going in, and wear a wetsuit in cold water.
    Build up to open water in short swims close to shore, and practise sighting in the pool first.
 4. A pool swim's watch workout is built for one pool length: every swim workout states the athlete's pool length.
+
+## Triathlon
+
+When a plan coaches more than one sport (`sports` in `plan.json`):
+1. **(enforced)** Each sport's load rules apply on their own: weekly amount, ramp and longest session.
+2. **Combined load (a warning):** intervals.icu's fitness (CTL) ramp rate across all sports above 8 a week is flagged, so total load is held steady.
+   Each sport can look fine while the total climbs too fast.
+   About 5-8 a week is the conventional sustainable range (coaching practice, not a study).
+3. **(enforced) A brick is a run marked `"brick": true` on a day with a ride.**
+   Bricks start in the build phase, about once a week, and stay short.
+4. **(enforced)** Riding most days is the training, so only a hard ride workout (long, sweet spot, threshold, intervals, hills or a time trial) counts for "no ride the day before a key run".
+5. Most training is easy in every sport, with at most two hard sessions in any one sport and three or four across all three in a week.
+6. Practise everything that happens on race day: open-water swims for an open-water race, transitions, and race nutrition in long sessions and bricks.
 
 ## Availability and schedule
 
