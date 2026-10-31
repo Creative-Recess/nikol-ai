@@ -57,6 +57,9 @@ Explain each step in plain words: they may never have used intervals.icu or a te
    For cycling, also set the Ride sport settings: FTP, LTHR and max HR (Ride LTHR is often a few beats below Run LTHR).
    Without a recent FTP test, use a 20-minute test (`power.py ftp 20min WATTS`) or intervals.icu's eFTP once there are a few hard rides.
    Without a power meter, ride workouts use HR targets only.
+   With a power meter, check the bike computer's recording settings: power averaging should include zeros (on a Garmin Edge, Data Recording → Power Averaging → Include Zeros), and the recording interval should be every second, not "smart".
+   Excluding zeros inflates the average power shown on the device, including lap averages used to hold interval targets; intervals.icu works out its own numbers from the second-by-second data.
+   Other brands may have a similar setting: check theirs.
 4. **API key.**
    They generate a key in intervals.icu (Settings → Developer settings).
    Never ask them to paste the key into the chat.
