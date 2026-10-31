@@ -74,21 +74,11 @@ The coach's instructions are in `AGENTS.md`, and the coaching rules in `RULES.md
 6. **State in files and the calendar, never in chat memory.**
    Every session starts from a fresh read of intervals.icu and the repo, so long conversations can't drift.
 
-Options considered and rejected:
-Strava (its API terms ban AI tooling, and it has no wellness data), unofficial Garmin Connect tools (they need your Garmin password and break often), closed apps like Runna or the watch makers' own coaching (no agent access, and you can't see or bound how they adapt), TrainingPeaks (no API for individuals), and an intervals.icu MCP server (dozens of tools loaded every session, and third-party code).
-
 ## Getting updates
 
 Ask your agent to "get the latest version".
 It pulls the changes and checks whether your setup needs anything new.
 Your `athlete/` folder is never touched by an update.
-
-## Not medical advice
-
-Nikol.ai is a training tool, not a doctor, physio or qualified coach.
-Check with a doctor before starting if you have an injury, a heart condition or a long break from exercise.
-Stop and get help for pain above 3/10, chest pain, dizziness or an injury that isn't settling, whatever the plan says.
-You use it at your own risk.
 
 ## Privacy
 
