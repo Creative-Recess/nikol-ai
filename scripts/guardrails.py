@@ -18,6 +18,9 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import sports
+from sports import Sport
+
 REPO = Path(__file__).resolve().parent.parent
 ATHLETE_DIR = REPO / "athlete"
 SETTINGS_FILE = ATHLETE_DIR / "settings.json"
@@ -124,8 +127,9 @@ def score_cleared(scores: list[tuple[dt.date, float]], as_of: dt.date, name: str
 
 # ---- Individual checks ----
 
-def check_long_runs(history: list[tuple[dt.date, float]], planned: list[tuple[dt.date, float]], report: Report) -> None:
-    """No run more than 10% longer than the longest run in the previous 30 days."""
+def check_long_runs(history: list[tuple[dt.date, float]], planned: list[tuple[dt.date, float]], report: Report,
+                    sport: Sport = sports.SPORTS["Run"]) -> None:
+    """No session more than 10% longer than the longest of the same sport in the previous 30 days."""
     timeline = sorted(history + planned)
     planned_set = set(planned)
     errors_before = len(report.errors)
@@ -134,40 +138,59 @@ def check_long_runs(history: list[tuple[dt.date, float]], planned: list[tuple[dt
             continue
         prior = [k for d, k in timeline[:i] if 0 < (day - d).days <= LONG_RUN_WINDOW_DAYS]
         if not prior:
-            report.errors.append(f"{day}: no runs in the previous {LONG_RUN_WINDOW_DAYS} days to compare a {km:g} km run against")
+            report.errors.append(f"{day}: no {sport.noun}s in the previous {LONG_RUN_WINDOW_DAYS} days to compare a "
+                                 f"{km:g} {sport.unit} {sport.noun} against")
             continue
         limit = max(prior) * (1 + LONG_RUN_MAX_INCREASE)
         if km > limit + 1e-9:
-            report.errors.append(f"{day}: {km:g} km is more than 10% over the 30-day longest run ({max(prior):g} km, limit {limit:.1f} km)")
+            report.errors.append(f"{day}: {km:g} {sport.unit} is more than 10% over the 30-day longest {sport.noun} "
+                                 f"({max(prior):g} {sport.unit}, limit {limit:.1f} {sport.unit})")
     longest = max((k for _, k in planned), default=0)
     if planned and len(report.errors) == errors_before:
-        report.passes.append(f"Long-run rule: longest planned run {longest:g} km is within 10% of the 30-day max")
+        report.passes.append(f"Long-{sport.noun} rule: longest planned {sport.noun} {longest:g} {sport.unit} "
+                             "is within 10% of the 30-day max")
+
+
+def planned_amount(sessions: list[dict], sport: Sport) -> float:
+    """The week's planned load for one sport, in the sport's unit."""
+    return sum(s.get("distance_km", 0) for s in sessions
+               if s.get("category") == "WORKOUT" and s.get("type") in sport.types)
 
 
 def check_weekly(week: dict, plan: dict, report: Report) -> None:
-    """Plan targets rise by at most 15% over the last full week and 30% over two full weeks."""
+    """Each coached sport's weekly target rises by at most 15% over the last full week and 30% over two full weeks."""
     weeks = {w["week"]: w for w in plan["weeks"]}
     this = weeks.get(week["week"])
     if this is None:
         report.errors.append(f"Week {week['week']} is not in plan.json")
         return
-    planned_km = sum(s.get("distance_km", 0) for s in week["sessions"] if s.get("type") == "Run")
-    target = this["run_km"]
-    if abs(planned_km - target) > target * WEEK_TARGET_TOLERANCE:
-        report.warnings.append(f"Planned run km {planned_km:g} is more than 10% away from the plan target {target:g}")
+    for sport in sports.coached(plan):
+        if sport.weekly_key:
+            _check_weekly_sport(week, weeks, this, sport, report)
+
+
+def _check_weekly_sport(week: dict, weeks: dict[int, dict], this: dict, sport: Sport, report: Report) -> None:
+    key, unit = sport.weekly_key, sport.unit
+    target = this.get(key)
+    if target is None:
+        report.warnings.append(f"Week {week['week']} has no {key} in plan.json, so weekly {sport.noun} load isn't checked")
+        return
+    planned = planned_amount(week["sessions"], sport)
+    if abs(planned - target) > target * WEEK_TARGET_TOLERANCE:
+        report.warnings.append(f"Planned {sport.noun} {unit} {planned:g} is more than 10% away from the plan target {target:g}")
     else:
-        report.passes.append(f"Weekly km: {planned_km:g} km planned vs {target:g} km target")
+        report.passes.append(f"Weekly {sport.noun} {unit}: {planned:g} {unit} planned vs {target:g} {unit} target")
     if this.get("down_week"):
         return
-    full = [w for n, w in sorted(weeks.items()) if n < week["week"] and not w.get("down_week")]
+    full = [w for n, w in sorted(weeks.items()) if n < week["week"] and not w.get("down_week") and w.get(key) is not None]
     if full:
-        prev = full[-1]["run_km"]
-        if planned_km > prev * (1 + WEEKLY_MAX_INCREASE) + 1e-9:
-            report.errors.append(f"{planned_km:g} km is more than 15% over the last full week ({prev:g} km)")
+        prev = full[-1][key]
+        if planned > prev * (1 + WEEKLY_MAX_INCREASE) + 1e-9:
+            report.errors.append(f"{planned:g} {unit} of {sport.noun}s is more than 15% over the last full week ({prev:g} {unit})")
     if len(full) >= 2:
-        prev2 = full[-2]["run_km"]
-        if planned_km > prev2 * (1 + TWO_WEEK_MAX_INCREASE) + 1e-9:
-            report.errors.append(f"{planned_km:g} km is more than 30% over two full weeks ago ({prev2:g} km)")
+        prev2 = full[-2][key]
+        if planned > prev2 * (1 + TWO_WEEK_MAX_INCREASE) + 1e-9:
+            report.errors.append(f"{planned:g} {unit} of {sport.noun}s is more than 30% over two full weeks ago ({prev2:g} {unit})")
 
 
 def check_workout_text(session: dict, report: Report) -> None:
@@ -202,6 +225,7 @@ def check_availability(sessions: list[dict], plan: dict, report: Report) -> None
 EASY_MIN_PER_KM = 6.0         # conservative time estimate for any run
 STRENGTH_MIN = {"A": 40, "B": 15, "C": 20}
 LEG_STRENGTH = {"A", "B"}
+ENDURANCE_NOTE_KINDS = {"ride", "swim"}  # sessions written as notes because they aren't pushed as workouts
 
 
 def _minutes(hh_mm: str) -> int:
@@ -279,7 +303,7 @@ def check_rest_day(week: dict, report: Report) -> None:
     if start.weekday() != 0:
         return
     busy = {s["date"] for s in week["sessions"]
-            if s.get("type") == "Run" or s.get("kind") == "ride" or s.get("strength") in LEG_STRENGTH}
+            if s.get("category") == "WORKOUT" or s.get("kind") in ENDURANCE_NOTE_KINDS or s.get("strength") in LEG_STRENGTH}
     rest = [start + dt.timedelta(days=i) for i in range(7) if str(start + dt.timedelta(days=i)) not in busy]
     if rest:
         report.passes.append("Rest day: " + ", ".join(f"{d:%a} {d.day} {d:%b}" for d in rest))
@@ -299,15 +323,16 @@ def check_gates(sessions: list[dict], cleared: bool, reason: str, report: Report
         report.passes.append(f"Quality sessions allowed: {reason}")
 
 
-def provisional_runs(weeks_dir: Path, today: dt.date, before: dt.date, exclude_start: str) -> list[tuple[dt.date, float]]:
-    """Planned runs from earlier week files that are still in the future, so can't be in the history yet."""
+def provisional_runs(weeks_dir: Path, today: dt.date, before: dt.date, exclude_start: str,
+                     sport: Sport = sports.SPORTS["Run"]) -> list[tuple[dt.date, float]]:
+    """Planned sessions of one sport from earlier week files that are still in the future, so can't be in the history yet."""
     out = []
     for f in sorted(weeks_dir.glob("*.json")):
         week = json.loads(f.read_text())
         if week["start"] == exclude_start:
             continue
         for s in week["sessions"]:
-            if s.get("category") == "WORKOUT" and s.get("type") == "Run":
+            if s.get("category") == "WORKOUT" and s.get("type") in sport.types:
                 day = dt.date.fromisoformat(s["date"])
                 if today <= day < before:
                     out.append((day, float(s["distance_km"])))
@@ -319,43 +344,31 @@ def provisional_runs(weeks_dir: Path, today: dt.date, before: dt.date, exclude_s
 def check_plan(plan: dict) -> Report:
     """The plan's weekly targets follow the load rules before any week is written.
 
-    Weekly run km rises by at most 15% over the last full week and 30% over two full weeks (down weeks
-    aren't checked), each long run is at most 10% longer than the longest in the previous 30 days (the
-    plan's baseline_long_run_km covers the 30 days before it starts), weeks run Monday to Monday (a short
-    week 0 may start on any day), and the race falls in the last week once the plan reaches it.
+    For each coached sport, the weekly target rises by at most 15% over the last full week and 30% over two
+    full weeks (down weeks aren't checked), and each week's longest session is at most 10% longer than the
+    longest in the previous 30 days (the plan's baseline, e.g. baseline_long_run_km, covers the 30 days
+    before it starts). Weeks run Monday to Monday (a short week 0 may start on any day), and the race falls
+    in the last week once the plan reaches it.
     """
     report = Report()
     weeks = sorted(plan.get("weeks", []), key=lambda w: w["week"])
     if not weeks:
         report.errors.append("plan.json has no weeks")
         return report
-    full: list[dict] = []
-    longs: list[tuple[dt.date, float]] = []
-    if plan.get("baseline_long_run_km"):
-        longs.append((dt.date.fromisoformat(weeks[0]["start"]) - dt.timedelta(days=1), float(plan["baseline_long_run_km"])))
-    else:
-        report.warnings.append("No baseline_long_run_km: the first long runs can't be checked against recent history")
-    for i, w in enumerate(weeks):
+    try:
+        plan_sports = sports.coached(plan)
+    except ValueError as exc:
+        report.errors.append(str(exc))
+        return report
+    for i, w in enumerate(weeks[1:], 1):
         start = dt.date.fromisoformat(w["start"])
-        label = f"Week {w['week']} ({w['start']})"
-        if i > 0:
-            expected = dt.date.fromisoformat(weeks[i - 1]["start"])
-            expected += dt.timedelta(days=7 - expected.weekday() if i == 1 else 7)
-            if start != expected:
-                report.errors.append(f"{label}: expected to start on Monday {expected}")
-        if not w.get("down_week"):
-            km = w["run_km"]
-            if full and km > full[-1]["run_km"] * (1 + WEEKLY_MAX_INCREASE) + 1e-9:
-                report.errors.append(f"{label}: {km:g} km is more than 15% over week {full[-1]['week']} ({full[-1]['run_km']:g} km)")
-            if len(full) >= 2 and km > full[-2]["run_km"] * (1 + TWO_WEEK_MAX_INCREASE) + 1e-9:
-                report.errors.append(f"{label}: {km:g} km is more than 30% over week {full[-2]['week']} ({full[-2]['run_km']:g} km)")
-            full.append(w)
-        long_km = w.get("long_run_km")
-        if long_km:
-            prior = [k for d, k in longs if 0 < (start - d).days <= LONG_RUN_WINDOW_DAYS]
-            if prior and long_km > max(prior) * (1 + LONG_RUN_MAX_INCREASE) + 1e-9:
-                report.errors.append(f"{label}: long run {long_km:g} km is more than 10% over the 30-day longest ({max(prior):g} km)")
-            longs.append((start, float(long_km)))
+        expected = dt.date.fromisoformat(weeks[i - 1]["start"])
+        expected += dt.timedelta(days=7 - expected.weekday() if i == 1 else 7)
+        if start != expected:
+            report.errors.append(f"Week {w['week']} ({w['start']}): expected to start on Monday {expected}")
+    for sport in plan_sports:
+        if sport.weekly_key:
+            _check_plan_sport(plan, weeks, sport, report)
     race = plan.get("race_date")
     if race:
         last = dt.date.fromisoformat(weeks[-1]["start"])
@@ -364,13 +377,46 @@ def check_plan(plan: dict) -> Report:
         elif dt.date.fromisoformat(race) < last:
             report.errors.append(f"race_date {race} is before the last plan week (starting {last})")
     if report.ok:
-        report.passes.append(f"Plan: {len(weeks)} weeks, weekly ramp and long-run growth within the rules")
+        report.passes.append(f"Plan: {len(weeks)} weeks, weekly ramp and long-session growth within the rules")
     return report
+
+
+def _check_plan_sport(plan: dict, weeks: list[dict], sport: Sport, report: Report) -> None:
+    key, long_key, unit = sport.weekly_key, sport.long_key, sport.unit
+    full: list[dict] = []
+    longs: list[tuple[dt.date, float]] = []
+    if plan.get(sport.baseline_key):
+        longs.append((dt.date.fromisoformat(weeks[0]["start"]) - dt.timedelta(days=1), float(plan[sport.baseline_key])))
+    else:
+        report.warnings.append(f"No {sport.baseline_key}: the first long {sport.noun}s can't be checked against recent history")
+    for w in weeks:
+        start = dt.date.fromisoformat(w["start"])
+        label = f"Week {w['week']} ({w['start']})"
+        amount = w.get(key)
+        if amount is None:
+            if not w.get("down_week"):
+                report.errors.append(f"{label}: no {key}")
+        elif not w.get("down_week"):
+            if full and amount > full[-1][key] * (1 + WEEKLY_MAX_INCREASE) + 1e-9:
+                report.errors.append(f"{label}: {amount:g} {unit} is more than 15% over week {full[-1]['week']} "
+                                     f"({full[-1][key]:g} {unit})")
+            if len(full) >= 2 and amount > full[-2][key] * (1 + TWO_WEEK_MAX_INCREASE) + 1e-9:
+                report.errors.append(f"{label}: {amount:g} {unit} is more than 30% over week {full[-2]['week']} "
+                                     f"({full[-2][key]:g} {unit})")
+            full.append(w)
+        long_amount = w.get(long_key)
+        if long_amount:
+            prior = [k for d, k in longs if 0 < (start - d).days <= LONG_RUN_WINDOW_DAYS]
+            if prior and long_amount > max(prior) * (1 + LONG_RUN_MAX_INCREASE) + 1e-9:
+                report.errors.append(f"{label}: long {sport.noun} {long_amount:g} {unit} is more than 10% over the "
+                                     f"30-day longest ({max(prior):g} {unit})")
+            longs.append((start, float(long_amount)))
 
 
 # ---- Whole-week check ----
 
-RUN_FIELDS = ("id", "date", "category", "type", "kind", "name", "distance_km", "description")
+WORKOUT_FIELDS = ("id", "date", "category", "type", "kind", "name", "description")
+RUN_FIELDS = WORKOUT_FIELDS + ("distance_km",)
 SESSION_FIELDS = ("id", "date", "category", "name")
 
 
@@ -378,25 +424,33 @@ def missing_fields(week: dict) -> list[str]:
     """Fields a week file needs before any check can run, as readable errors."""
     errors = [f"week file has no \"{k}\"" for k in ("week", "start", "sessions") if k not in week]
     for i, s in enumerate(week.get("sessions", []), 1):
-        needed = RUN_FIELDS if s.get("category") == "WORKOUT" else SESSION_FIELDS
+        if s.get("category") != "WORKOUT":
+            needed = SESSION_FIELDS
+        else:
+            needed = RUN_FIELDS if s.get("type") in sports.SPORTS["Run"].types else WORKOUT_FIELDS
         gaps = [k for k in needed if k not in s]
         if gaps:
             errors.append(f"session {i} ({s.get('name', 'unnamed')}) is missing {', '.join(gaps)}")
     return errors
 
 
-def baseline_history(plan: dict) -> list[tuple[dt.date, float]]:
-    """The plan's baseline_long_run_km as a run the day before the plan starts, so new runners can be checked."""
-    if not plan.get("baseline_long_run_km") or not plan.get("weeks"):
+def baseline_history(plan: dict, sport: Sport = sports.SPORTS["Run"]) -> list[tuple[dt.date, float]]:
+    """The plan's baseline (e.g. baseline_long_run_km) as a session the day before the plan starts, so new athletes
+    can be checked."""
+    if not sport.baseline_key or not plan.get(sport.baseline_key) or not plan.get("weeks"):
         return []
     first = min(dt.date.fromisoformat(w["start"]) for w in plan["weeks"])
-    return [(first - dt.timedelta(days=1), float(plan["baseline_long_run_km"]))]
+    return [(first - dt.timedelta(days=1), float(plan[sport.baseline_key]))]
 
 
 def check_week(week: dict, history: list[tuple[dt.date, float]] | None = None,
                scores: list[tuple[dt.date, float]] | None = None, plan: dict | None = None,
                offline: bool = False, weeks_dir: Path | None = None) -> Report:
-    """Run every guardrail. Fetches run history and injury scores from intervals.icu unless given or offline."""
+    """Run every guardrail. Fetches history and injury scores from intervals.icu unless given or offline.
+
+    `history` is the running history as (date, km). It's only used when the plan coaches running; other
+    sports' histories are always fetched (or empty offline).
+    """
     report = Report()
     report.errors.extend(missing_fields(week))
     if not report.ok:
@@ -405,34 +459,33 @@ def check_week(week: dict, history: list[tuple[dt.date, float]] | None = None,
     start = dt.date.fromisoformat(week["start"])
     if plan is None:
         plan = json.loads(plan_file().read_text())
+    try:
+        plan_sports = sports.coached(plan)
+    except ValueError as exc:
+        report.errors.append(str(exc))
+        return report
     score_name = injury_score_name() if scores is None else None
     if offline:
-        history = [] if history is None else history
         scores = [] if scores is None else scores
-        report.warnings.append("Offline: checked against the plan only, not your recent runs or injury scores. "
+        report.warnings.append("Offline: checked against the plan only, not your recent sessions or injury scores. "
                                "Check again online before pushing")
-    if history is None or (scores is None and score_name):
+    oldest = str(start - dt.timedelta(days=LONG_RUN_WINDOW_DAYS + 7))
+    if scores is None and score_name:
         import icu
 
-        oldest = str(start - dt.timedelta(days=LONG_RUN_WINDOW_DAYS + 7))
-        if history is None:
-            history = icu.run_history(oldest, str(dt.date.today() - dt.timedelta(days=1)))
-            provisional = provisional_runs(weeks_dir or event_dir() / "weeks", dt.date.today(), start, week["start"])
-            if provisional:
-                history = sorted(history + provisional)
-                report.warnings.append(
-                    f"Counted {len(provisional)} planned runs that haven't happened yet. "
-                    "Re-check this week once they're done"
-                )
-        if scores is None:
-            scores = parse_scores(icu.wellness(oldest, str(dt.date.today())), score_name)
-    history = sorted(history + baseline_history(plan))
+        scores = parse_scores(icu.wellness(oldest, str(dt.date.today())), score_name)
 
-    runs = [s for s in sessions if s.get("category") == "WORKOUT" and s.get("type") == "Run"]
-    planned = [(dt.date.fromisoformat(s["date"]), float(s["distance_km"])) for s in runs]
-    check_long_runs(history, planned, report)
+    for sport in plan_sports:
+        if not sport.long_key:
+            continue
+        given = history if sport.name == "Run" else None
+        sport_history = _history(sport, given, offline, oldest, start, week, weeks_dir, report)
+        planned = [(dt.date.fromisoformat(s["date"]), float(s["distance_km"])) for s in sessions
+                   if s.get("category") == "WORKOUT" and s.get("type") in sport.types]
+        check_long_runs(sorted(sport_history + baseline_history(plan, sport)), planned, report, sport)
     check_weekly(week, plan, report)
-    for s in runs:
+    workouts = [s for s in sessions if s.get("category") == "WORKOUT"]
+    for s in workouts:
         check_workout_text(s, report)
     check_rides(sessions, report, week.get("exceptions"))
     check_availability(sessions, plan, report)
@@ -444,8 +497,35 @@ def check_week(week: dict, history: list[tuple[dt.date, float]] | None = None,
         cleared, reason = score_cleared(scores, start - dt.timedelta(days=1), score_name or "injury")
     check_gates(sessions, cleared, reason, report)
     if not report.errors:
-        report.passes.append(f"Workout text: {len(runs)} runs, one target type each")
+        report.passes.append(f"Workout text: {_count(workouts)}, one target type each")
     return report
+
+
+def _history(sport: Sport, given: list[tuple[dt.date, float]] | None, offline: bool, oldest: str, start: dt.date,
+             week: dict, weeks_dir: Path | None, report: Report) -> list[tuple[dt.date, float]]:
+    """Completed sessions of one sport, plus planned ones from earlier week files that haven't happened yet."""
+    if given is not None:
+        return list(given)
+    if offline:
+        return []
+    import icu
+
+    history = icu.history(sport, oldest, str(dt.date.today() - dt.timedelta(days=1)))
+    provisional = provisional_runs(weeks_dir or event_dir() / "weeks", dt.date.today(), start, week["start"], sport)
+    if provisional:
+        report.warnings.append(
+            f"Counted {len(provisional)} planned {sport.noun}s that haven't happened yet. "
+            "Re-check this week once they're done"
+        )
+    return sorted(history + provisional)
+
+
+def _count(workouts: list[dict]) -> str:
+    """'3 runs', or '3 workouts' when the week mixes sports."""
+    kinds = {sports.sport_of(s.get("type")) for s in workouts}
+    if len(kinds) == 1 and None not in kinds:
+        return f"{len(workouts)} {next(iter(kinds)).noun}s"
+    return f"{len(workouts)} workouts"
 
 
 def main() -> None:

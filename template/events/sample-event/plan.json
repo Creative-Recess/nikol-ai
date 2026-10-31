@@ -1,4 +1,5 @@
 {
+  "sports": ["Run"],
   "event": "Sample City Marathon",
   "race_date": "2027-05-30",
   "race_start": "07:00",
