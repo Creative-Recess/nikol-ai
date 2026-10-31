@@ -7,6 +7,7 @@ Usage:
     python3 scripts/icu.py athlete
     python3 scripts/icu.py runs --days 42            # recent runs, one per line
     python3 scripts/icu.py rides --days 42           # recent rides: time, climbing, NP, IF, load, HR
+    python3 scripts/icu.py swims --days 42           # recent swims: distance, time, pace per 100 m, HR
     python3 scripts/icu.py weeks --days 84           # weekly run km, run count, longest run, ride km, swim km
     python3 scripts/icu.py wellness --days 14        # HRV, resting HR, sleep, injury score
     python3 scripts/icu.py score 2 [--date DATE]     # log the morning injury score (default today)
@@ -288,9 +289,18 @@ def verify(week: dict) -> list[str]:
             continue
         if s["category"] != "WORKOUT":
             continue
-        steps = _flatten((event.get("workout_doc") or {}).get("steps") or [])
+        doc = event.get("workout_doc") or {}
+        steps = _flatten(doc.get("steps") or [])
         if not steps:
             problems.append(f"{s['date']} {s['name']}: intervals.icu parsed no workout steps")
+        if s.get("type") in sports.SPORTS["Swim"].types:
+            # Swim steps carry no targets (the pace is in the step text), but need the pool length.
+            if not (doc.get("options") or {}).get("pool_length"):
+                problems.append(f"{s['date']} {s['name']}: no pool length, so the watch assumes 25 m")
+            for i, step in enumerate(steps, 1):
+                if not (step.get("distance") or step.get("duration")):
+                    problems.append(f"{s['date']} {s['name']}: step {i} has no distance or time")
+            continue
         for i, step in enumerate(steps, 1):
             if not step_targets(step):
                 problems.append(f"{s['date']} {s['name']}: step {i} has no target (would show as No Target)")
@@ -343,6 +353,19 @@ def print_rides(days: int) -> None:
               f"HR {a.get('average_heartrate') or '-'}  {a.get('name') or ''}")
 
 
+def print_swims(days: int) -> None:
+    oldest, newest = _window(days)
+    for a in sorted(activities(oldest, newest), key=lambda a: a["start_date_local"]):
+        if a.get("type") not in sports.SPORTS["Swim"].types:
+            continue
+        metres = a.get("distance") or 0
+        moving = a.get("moving_time") or 0
+        pace = _fmt_pace(moving / metres * 100) if metres else "-"
+        h, m = divmod(round(moving / 60), 60)
+        print(f"{a['start_date_local'][:10]}  {metres:6.0f} m  {h}:{m:02d} h  {pace}/100m  "
+              f"HR {a.get('average_heartrate') or '-'}  {a.get('type')}  {a.get('name') or ''}")
+
+
 def print_weeks(days: int) -> None:
     oldest, newest = _window(days)
     run, ride, swim = (sports.SPORTS[n] for n in ("Run", "Ride", "Swim"))
@@ -392,9 +415,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("athlete")
-    for name in ("runs", "rides", "weeks", "wellness"):
+    for name in ("runs", "rides", "swims", "weeks", "wellness"):
         p = sub.add_parser(name)
-        p.add_argument("--days", type=int, default={"runs": 42, "rides": 42, "weeks": 84, "wellness": 14}[name])
+        p.add_argument("--days", type=int, default={"runs": 42, "rides": 42, "swims": 42, "weeks": 84, "wellness": 14}[name])
     p_score = sub.add_parser("score", help="Log the morning injury score in wellness comments")
     p_score.add_argument("score", type=float)
     p_score.add_argument("--date", default=str(dt.date.today()))
@@ -417,6 +440,8 @@ def main() -> None:
             print_runs(args.days)
         elif args.command == "rides":
             print_rides(args.days)
+        elif args.command == "swims":
+            print_swims(args.days)
         elif args.command == "weeks":
             print_weeks(args.days)
         elif args.command == "wellness":

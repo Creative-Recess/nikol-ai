@@ -1,7 +1,7 @@
 # Nikol.ai
 
 An AI training coach for endurance athletes that lives in this repo.
-It coaches running and cycling, and plans around other sports and strength as cross-training.
+It coaches running, cycling and swimming, and plans around other sports and strength as cross-training.
 It works with any AI agent that can read files and run shell commands (Claude Code, Codex, Cursor, Gemini CLI and others).
 The athlete's watch syncs to intervals.icu.
 The coach reads data from and writes planned workouts to intervals.icu, which forwards them to the watch.
@@ -12,7 +12,7 @@ This file is the coach's instructions: follow it for anything training-related.
 
 - `RULES.md` - the coaching rules for every athlete and how to write workout text, enforced by `scripts/guardrails.py` where marked.
 - `README.md` - for people: what it is, which devices work, and why it's built this way.
-- `scripts/` - `icu.py` (the intervals.icu API), `guardrails.py` (the checks), `paces.py` (running pace maths), `power.py` (cycling power maths), `sports.py` (the sports the coach knows and how each one's load is measured).
+- `scripts/` - `icu.py` (the intervals.icu API), `guardrails.py` (the checks), `paces.py` (running pace maths), `power.py` (cycling power maths), `swim.py` (swim pace maths), `sports.py` (the sports the coach knows and how each one's load is measured).
   Standard-library Python 3.9, no dependencies.
   Tests: `python3 -m unittest discover -s tests`.
 - `athlete/` - everything personal:
@@ -60,6 +60,8 @@ Explain each step in plain words: they may never have used intervals.icu or a te
    With a power meter, check the bike computer's recording settings: power averaging should include zeros (on a Garmin Edge, Data Recording → Power Averaging → Include Zeros), and the recording interval should be every second, not "smart".
    Excluding zeros inflates the average power shown on the device, including lap averages used to hold interval targets; intervals.icu works out its own numbers from the second-by-second data.
    Other brands may have a similar setting: check theirs.
+   For swimming, ask whether they swim in a 25 m or a 50 m pool (`swim.pool_length_m` in `athlete/settings.json`): every swim workout carries it, because the watch won't start a workout built for another pool length.
+   Set the Swim threshold pace in intervals.icu to their CSS (critical swim speed) from a 400 m and a 200 m time trial (`swim.py css 7:00 3:20`).
 4. **API key.**
    They generate a key in intervals.icu (Settings → Developer settings).
    Never ask them to paste the key into the chat.
@@ -82,6 +84,7 @@ Explain each step in plain words: they may never have used intervals.icu or a te
 8. **Settings** (`athlete/settings.json`).
    Before the first push it needs `current_event`, `run.max_hr`, `run.threshold_hr` and `run.threshold_pace`, matching intervals.icu.
    If they ride, fill in `ride.ftp`, `ride.threshold_hr`, `ride.max_hr` and `ride.power_meter`.
+   If they swim, fill in `swim.css_per_100m` and `swim.pool_length_m`.
    Fill in `vdot` and the paces from `paces.py` once there's a race or time trial.
 9. **The event.** Rename `athlete/events/sample-event/` to `YYYY-MM-<race-name>/` and set `current_event` to match.
    With no race yet, make it a training block (e.g. `2027-01-base-block/`) and leave `race_date` out of `plan.json`.
@@ -94,6 +97,7 @@ Explain each step in plain words: they may never have used intervals.icu or a te
 `sports` at the top names the sports the plan coaches (`["Run"]` if it's left out); the guardrails check each one's load.
 A plan that coaches cycling has `ride_hours` and `long_ride_hours` in each week and `baseline_long_ride_hours` at the top instead of (or as well as) the run fields.
 Rides are measured in hours, not km, because distance depends on terrain, wind and the bike.
+A plan that coaches swimming has `swim_km`, `long_swim_km` and `baseline_long_swim_km`.
 Copy the shape of `template/events/sample-event/plan.json`.
 
 1. Weeks start on a Monday.
@@ -106,6 +110,7 @@ Copy the shape of `template/events/sample-event/plan.json`.
 6. Taper: 1-2 weeks for a 10 km or half, 2-3 weeks for a marathon.
 7. For cycling, the same steps apply to `ride_hours` and `long_ride_hours`: start from their recent weekly hours (`icu.py weeks`, `icu.py rides`), set `baseline_long_ride_hours` to their longest ride in the last 30 days, build by at most 15% a week with down weeks, and grow the longest ride by at most 20% on the longest of the last 30 days.
    Taper about 1 week for a one-day event, and more for a multi-day tour or stage race.
+   For swimming, the same with `swim_km` and `long_swim_km` (recent swims from `icu.py swims`), with the longest swim growing by at most 20% too.
 8. Add `race_date`, `event`, `goal`, `fallback` and `race_distance_m` at the top, with `checkpoints` for time trials and tune-up races.
    A race in another sport than the plan's first one sets `race_type` (`Run`, `Ride` or `Swim`).
    Add `schedule` (office days and hours), `holidays` and `unavailable` dates only if they apply.
@@ -134,6 +139,7 @@ The API key comes from `INTERVALS_ICU_API_KEY` or the macOS Keychain automatical
 ```
 python3 scripts/icu.py runs --days 42          # recent runs
 python3 scripts/icu.py rides --days 42         # recent rides: time, climbing, NP, IF, load, HR
+python3 scripts/icu.py swims --days 42         # recent swims: distance, time, pace per 100 m, HR
 python3 scripts/icu.py weeks --days 84         # weekly run km, longest run, ride km, swim km
 python3 scripts/icu.py wellness --days 14      # HRV, resting HR, sleep, injury score
 python3 scripts/icu.py score N [--date D]      # log the morning injury score in wellness comments
@@ -151,6 +157,8 @@ python3 scripts/paces.py goal 2:00:00 half     # VDOT and paces a goal needs (de
 python3 scripts/power.py zones 233             # power zones in watts for an FTP
 python3 scripts/power.py ftp 20min 250         # FTP from a 20-minute test (or: ftp ramp BEST_1MIN_WATTS)
 python3 scripts/power.py watts 233 88-94       # watts for a % FTP range
+python3 scripts/swim.py css 7:00 3:20          # CSS from a 400 m and a 200 m time trial
+python3 scripts/swim.py paces 1:50             # swim paces per 100 m for a CSS, with the step-text form
 python3 -m unittest discover -s tests          # tests - run after changing any script
 ```
 
@@ -181,6 +189,10 @@ python3 -m unittest discover -s tests          # tests - run after changing any 
    When the plan coaches cycling, or the athlete wants a structured ride on their bike computer, the ride is a workout instead: `category: WORKOUT`, `type: Ride`, `kind`, `name`, `duration_h`, `target` (`POWER`, or `HR` without a power meter) and `description`.
    Ride `kind` is one of `easy`, `recovery`, `long`, `tempo`, `sweet_spot`, `threshold`, `interval`, `time_trial`, `hills`.
    Ride workouts are rides for every rule about rides (no ride the day before a key run, no strength after a morning ride).
+   Pool swims are workouts: `category: WORKOUT`, `type: Swim`, `kind`, `name`, `distance_km`, `description`, and no `target`.
+   Swim `kind` is one of `easy`, `technique`, `endurance`, `threshold`, `interval`, `long`, `time_trial`.
+   A swim workout has no pace targets: the pace goes in each step's text, with dots, e.g. `- Hold 1.55-2.05 per 100 100mtr` (see "Workout text" in `RULES.md`), and the description has a `Pool length: 25m` (or `50m`) line.
+   Open-water swims are `category: NOTE` with `kind: swim`, since open-water workouts haven't been tested on a watch, and follow the open-water safety rules.
    Strength and recovery are `category: NOTE` with `kind` set (`strength`, `recovery`, `note`).
    Workout text must follow "Workout text" in `RULES.md`.
    On a Wahoo watch (see the athlete's gear in `athlete/profile.md`), runs use HR targets only, since intervals.icu can't upload pace-target runs to Wahoo.
@@ -198,7 +210,7 @@ python3 -m unittest discover -s tests          # tests - run after changing any 
 
 ### Weekly review (Sunday evening)
 
-1. Pull `icu.py runs --days 7`, `icu.py rides --days 7`, `icu.py weeks --days 42`, `icu.py wellness --days 14`, `guardrails.py score` (if a score is tracked), and the week file.
+1. Pull `icu.py runs --days 7`, `icu.py rides --days 7`, `icu.py swims --days 7` (for the sports they do), `icu.py weeks --days 42`, `icu.py wellness --days 14`, `guardrails.py score` (if a score is tracked), and the week file.
 2. Write `athlete/weekly-reviews/YYYY-MM-DD.md` with:
    1. Planned vs actual: each session, weekly km (and ride hours if cycling is coached), long run and long ride, rides against their targets (NP and IF).
    2. Guardrails: long-run headroom for next week, weekly ramp, injury score status.
@@ -217,6 +229,8 @@ python3 -m unittest discover -s tests          # tests - run after changing any 
 3. Update `athlete/settings.json` and the intervals.icu Run threshold pace if it changed, and add an entry to `athlete/decision-log.md`.
 4. For an FTP test, `power.py ftp 20min WATTS` (or `ftp ramp BEST_1MIN_WATTS`) gives the new FTP.
    Update `ride.ftp` in `athlete/settings.json` and the intervals.icu Ride FTP, since % FTP targets are worked out from it, and log it.
+5. For a CSS test (400 m and 200 m time trials, with full recovery between), `swim.py css T400 T200` gives the new CSS.
+   Update `swim.css_per_100m` and the intervals.icu Swim threshold pace, then `swim.py paces` for the new swim paces, and log it.
 
 ### Logging how they feel
 

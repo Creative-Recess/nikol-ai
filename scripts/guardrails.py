@@ -209,14 +209,51 @@ def step_targets(line: str) -> set[str]:
     return found
 
 
-def check_workout_text(session: dict, report: Report) -> None:
+# Swim steps are a distance ("100mtr", "1.5km") or a rest ("Rest 20s"). Pace goes in the step's own text.
+SWIM_DISTANCE_RE = re.compile(r"\d+(?:\.\d+)?\s*(?:mtr|km)\b", re.IGNORECASE)
+SWIM_REST_RE = re.compile(r"^-\s*rest\s+\d+\s*(?:s|m)\b", re.IGNORECASE)
+CLOCK_TIME_RE = re.compile(r"\d:\d\d")
+POOL_LENGTH_RE = re.compile(r"^\s*pool length:\s*(\d+)\s*m\s*$", re.IGNORECASE | re.MULTILINE)
+
+
+def check_swim_text(session: dict, report: Report, pool_length_m: int | None = None) -> None:
+    """Swim workouts: distance and rest steps, the pace written into the step text, and the pool length.
+
+    Tested on a Garmin Forerunner 255S (Oct 2026): pace targets (absolute or % threshold) never reach the
+    watch, but a step's text does, as long as it has no colon ("1.55", not "1:55"). Without a "Pool length"
+    line intervals.icu assumes 25 m, and the watch won't start the workout in a pool set to another length.
+    """
+    description = session.get("description", "")
+    steps = [l.strip() for l in description.splitlines() if l.strip().startswith("-")]
+    label = f"{session['date']} {session['name']}"
+    if not steps:
+        report.errors.append(f"{label}: no workout steps")
+    for line in steps:
+        if step_targets(line):
+            report.errors.append(f"{label}: step '{line}' has a target, which doesn't reach the watch for swims. "
+                                 "Write the pace into the step text instead, e.g. '- Hold 1.55-2.05 per 100 100mtr'")
+        if CLOCK_TIME_RE.search(line):
+            report.errors.append(f"{label}: step '{line}' has a colon, which cuts the step text short. Write 1.55, not 1:55")
+        if not (SWIM_DISTANCE_RE.search(line) or SWIM_REST_RE.match(line)):
+            report.errors.append(f"{label}: step '{line}' needs a distance in mtr or km, or to be a rest ('- Rest 20s')")
+    if MINUTES_AS_METRES_RE.search("\n".join(steps)):
+        report.errors.append(f"{label}: '{MINUTES_AS_METRES_RE.search(chr(10).join(steps)).group(0)}' means minutes. "
+                             "Use 'mtr' for metres")
+    pool = POOL_LENGTH_RE.search(description)
+    if not pool:
+        report.errors.append(f"{label}: no 'Pool length: 25m' (or 50m) line, so intervals.icu assumes 25 m")
+    elif pool_length_m and int(pool.group(1)) != int(pool_length_m):
+        report.errors.append(f"{label}: pool length {pool.group(1)} m, but the athlete's pool is {pool_length_m} m")
+
+
+def check_workout_text(session: dict, report: Report, pool_length_m: int | None = None) -> None:
     # Only step lines are parsed by intervals.icu. The free-text notes above them can say anything.
     steps = [l.strip() for l in session.get("description", "").splitlines() if l.strip().startswith("-")]
     text = "\n".join(steps)
     label = f"{session['date']} {session['name']}"
     sport = sports.sport_of(session.get("type")) or sports.SPORTS["Run"]
-    if not sport.targets:
-        report.errors.append(f"{label}: {sport.noun} workouts aren't coached yet, so write it as a note (kind \"{sport.noun}\")")
+    if sport.name == "Swim":
+        check_swim_text(session, report, pool_length_m)
         return
     used = set().union(*(step_targets(s) for s in steps)) if steps else set()
     if len(used) > 1:
@@ -248,6 +285,7 @@ def check_availability(sessions: list[dict], plan: dict, report: Report) -> None
 
 
 EASY_MIN_PER_KM = 6.0         # conservative time estimate for any run
+SWIM_MIN_PER_KM = 30.0        # conservative time estimate for a pool swim, rests included
 STRENGTH_MIN = {"A": 40, "B": 15, "C": 20}
 LEG_STRENGTH = {"A", "B"}
 ENDURANCE_NOTE_KINDS = {"ride", "swim"}  # sessions written as notes because they aren't pushed as workouts
@@ -291,6 +329,7 @@ def check_schedule(sessions: list[dict], plan: dict, report: Report) -> None:
         if budget is not None and weekday in office and not flexible and not untimed_ride:
             minutes = sum(x.get("distance_km", 0) for x in morning if x.get("type") == "Run") * EASY_MIN_PER_KM
             minutes += sum(x.get("duration_h", 0) for x in morning if x.get("type") in sports.SPORTS["Ride"].types) * 60
+            minutes += sum(x.get("distance_km", 0) for x in morning if x.get("type") in sports.SPORTS["Swim"].types) * SWIM_MIN_PER_KM
             minutes += sum(STRENGTH_MIN.get(x, 0) for x in morning_strength)
             if minutes > budget:
                 report.errors.append(f"{day} ({weekday}, office day): about {minutes:.0f} min won't finish by {done_by}")
@@ -524,8 +563,9 @@ def check_week(week: dict, history: list[tuple[dt.date, float]] | None = None,
         check_long_runs(sorted(sport_history + baseline_history(plan, sport)), planned, report, sport)
     check_weekly(week, plan, report)
     workouts = [s for s in sessions if s.get("category") == "WORKOUT"]
+    pool_length_m = (settings().get("swim") or {}).get("pool_length_m")
     for s in workouts:
-        check_workout_text(s, report)
+        check_workout_text(s, report, pool_length_m)
     check_rides(sessions, report, week.get("exceptions"))
     check_availability(sessions, plan, report)
     check_schedule(sessions, plan, report)

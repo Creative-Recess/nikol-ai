@@ -20,7 +20,7 @@ def run(day, km, kind="easy", sid="run"):
 
 def swim(day):
     return {"id": "swim", "date": str(day), "category": "WORKOUT", "type": "Swim", "kind": "easy",
-            "name": "Easy swim", "description": "- 1000mtr 80% Pace"}
+            "name": "Easy swim", "distance_km": 1, "description": "Pool length: 25m\n\n- Easy 2.20 per 100 1000mtr"}
 
 
 class CoachedSportsTest(unittest.TestCase):
@@ -57,9 +57,11 @@ class OtherSportsInARunningPlanTest(unittest.TestCase):
         g.check_weekly(week, self.PLAN, report)
         self.assertIn("Weekly run km: 16 km planned vs 16 km target", report.passes)
 
-    def test_non_run_workouts_dont_need_a_distance(self):
+    def test_each_sport_needs_its_own_amount_field(self):
         week = {"week": 1, "start": str(MON), "sessions": [swim(MON + dt.timedelta(days=2))]}
         self.assertEqual(g.missing_fields(week), [])
+        del week["sessions"][0]["distance_km"]
+        self.assertIn("distance_km", g.missing_fields(week)[0])
 
     def test_a_swim_takes_the_rest_day(self):
         days = range(1, 7)
