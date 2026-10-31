@@ -21,6 +21,28 @@ Agents changing the engine follow this file too.
 
 Everything outside `athlete/` is the engine, and the engine never names or describes a specific athlete.
 
+## Design principles
+
+These are the choices the project is built on.
+A change that goes against one needs a good reason, said plainly in the pull request.
+
+1. **intervals.icu as the hub.**
+   It's free, has official integrations with the main watch makers, and an open API with a personal key, so one integration covers every supported device.
+   The watch makers' own APIs are business-only or closed.
+2. **Plain files and scripts, no third-party tools.**
+   Markdown instructions plus standard-library Python work in any agent, with no supply chain, and the API key stays on your computer.
+   Don't add dependencies, an MCP server or anything that needs installing.
+3. **Maths in code, not in the model.**
+   The most common failures reported with AI coaches are wrong dates, pace arithmetic errors and ramping load too fast (see [Düking et al. 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC10915606), experts rating ChatGPT training plans), so scripts do all of it (`paces.py` for running, `power.py` for cycling, `swim.py` for swimming).
+   Never add pace, date or load arithmetic to the instructions for the model to do itself.
+4. **A fixed plan, adjusted within bounds.**
+   The week-by-week skeleton is set up front.
+   Weekly reviews can only move, shorten or swap sessions within the rules, and anything bigger is a logged decision.
+5. **Guardrails before anything is written.**
+   Every week is checked against the rules in `RULES.md` before it reaches the calendar, and verified afterwards.
+6. **State in files and the calendar, never in chat memory.**
+   Every session starts from a fresh read of intervals.icu and the repo, so long conversations can't drift.
+
 ## Making a change
 
 1. Work on a branch, and open a pull request with one change in it.

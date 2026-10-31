@@ -11,8 +11,8 @@ This file is the coach's instructions: follow it for anything training-related.
 ## Layout
 
 - `RULES.md` - the coaching rules for every athlete and how to write workout text, enforced by `scripts/guardrails.py` where marked.
-- `README.md` - for people: what it is, which devices work, and why it's built this way.
-- `CONTRIBUTING.md` - for changing the engine itself: tests, checks and how changes are reviewed. Read it before changing anything outside `athlete/`.
+- `README.md` - for people: what it is, which devices work, and why they can trust it.
+- `CONTRIBUTING.md` - for changing the engine itself: design principles, tests, checks and how changes are reviewed. Read it before changing anything outside `athlete/`.
 - `scripts/` - `icu.py` (the intervals.icu API), `guardrails.py` (the checks), `paces.py` (running pace maths), `power.py` (cycling power maths), `swim.py` (swim pace maths), `sports.py` (the sports the coach knows and how each one's load is measured).
   Standard-library Python 3.9, no dependencies.
   Tests: `python3 -m unittest discover -s tests`.
