@@ -23,6 +23,10 @@
     "max_hr": null,
     "power_meter": null
   },
+  "swim": {
+    "css_per_100m": null,
+    "pool_length_m": null
+  },
   "injury_score": {
     "name": null,
     "side": null,

@@ -25,6 +25,9 @@ They add to these rules and can tighten them, but never loosen an enforced one.
    Weekly ride hours follow the same 15% and 30% ramp and 10% target tolerance as run km.
    No ride is more than 20% longer than the longest ride in the previous 30 days.
    These limits are conventional coaching practice, not from a study like the running ones: cycling has no impact loading, so the longest ride can grow faster than the long run.
+8. **(enforced, when the plan coaches swimming) Swim load is distance.**
+   Weekly swim km follows the same ramp and target tolerance, and no swim is more than 20% longer than the longest swim in the previous 30 days (conventional practice, as for rides).
+   The shoulders are the swimmer's limiter: a sore shoulder means easier sets and more technique, not more volume.
 
 ## Rides
 
@@ -38,6 +41,16 @@ They add to these rules and can tighten them, but never loosen an enforced one.
 4. **When the plan coaches cycling**, rides are workouts pushed to the bike computer with power targets (`% FTP`), or HR targets without a power meter.
    Most riding is endurance (zones 1-2), with at most two or three hard sessions (sweet spot, threshold, intervals) a week, and an easy day or rest before each one.
 5. A ride the athlete does their own way (a group ride) stays a note with an NP cap, as cross-training.
+
+## Swims
+
+1. Most swimming is technique and endurance at easy to moderate pace, with one or two threshold (CSS) sessions a week.
+2. Paces come from CSS (critical swim speed), set by a 400 m and a 200 m time trial and worked out with `scripts/swim.py`.
+3. **Open water safety:** never swim alone in open water.
+   Swim with a group or a buddy, or at a patrolled beach between the flags, with a bright cap and a tow float.
+   Check the conditions (currents, swell, water temperature, water quality after rain) before going in, and wear a wetsuit in cold water.
+   Build up to open water in short swims close to shore, and practise sighting in the pool first.
+4. A pool swim's watch workout is built for one pool length: every swim workout states the athlete's pool length.
 
 ## Availability and schedule
 
@@ -186,6 +199,29 @@ Cooldown
 A bare `%` is % FTP, and `90rpm` adds a cadence target.
 Power zones (`- 15m Z2`), watts (`- 5m 200-220w`) and HR (`- 20m 69-83% LTHR`, `- 10m Z1 HR`) also work.
 `power.py` turns % FTP into watts for the notes.
+
+**Pool swims (tested on a Garmin Forerunner 255S, Oct 2026):**
+```
+Pool length: 50m
+
+Warmup
+- Easy 2.20 per 100 200mtr
+
+Main Set 4x
+- Hold 1.55-2.05 per 100 100mtr
+- Rest 20s
+
+Cooldown
+- Easy 2.30 per 100 100mtr
+```
+1. **(enforced) No targets on swim steps.**
+   Pace targets (`1:55/100m Pace`, `80% Pace`) parse in intervals.icu but never reach the watch, so the target pace goes in the step's own text, before the distance.
+2. **(enforced) No colons in a step's text:** intervals.icu cuts the text short at a colon, so write `1.55`, not `1:55`.
+   `swim.py paces` prints both forms.
+3. **(enforced) Every step is a distance (`100mtr`, `1.5km`) or a rest (`- Rest 20s`).**
+   Rests arrive on the watch as rests.
+4. **(enforced) Every swim workout has a `Pool length: 25m` (or `50m`) line, matching the athlete's pool.**
+   Without it intervals.icu assumes 25 m, and the watch won't start a 25 m workout in a pool set to 50 m.
 
 The Garmin Connect app doesn't show the steps of workouts sent from intervals.icu (any sport), only the name and notes.
 Check a workout on the watch or bike computer instead.

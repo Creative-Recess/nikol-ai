@@ -111,12 +111,6 @@ class RideWorkoutTextTest(unittest.TestCase):
     def test_long_ride_steps_in_minutes_are_fine(self):
         self.assertEqual(self.errors_for("- 120m 56-75%"), [])
 
-    def test_swim_workouts_get_a_plain_error_until_swimming_is_coached(self):
-        swim = {"id": "swim", "date": str(MON), "category": "WORKOUT", "type": "Swim", "kind": "easy",
-                "name": "Swim", "description": "- 400mtr 80% Pace"}
-        self.assertEqual(self.errors_for(None, swim),
-                         [f"{MON} Swim: swim workouts aren't coached yet, so write it as a note (kind \"swim\")"])
-
     def test_step_without_target_fails(self):
         self.assertTrue(any("no target" in e for e in self.errors_for("- 20m 60%\n- 10m")))
 

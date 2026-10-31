@@ -19,7 +19,7 @@ class Sport:
     long_key: str | None      # plan.json week field for the longest session
     baseline_key: str | None  # plan.json field for the longest session in the 30 days before the plan
     field: str | None         # week-file workout field holding the session's planned amount, in `unit`
-    targets: frozenset[str]   # target types its workout text may use: "hr", "pace", "power"
+    targets: frozenset[str]   # target types its workout text may use: "hr", "pace", "power" (none for swims)
     long_max_increase: float = 0.10  # longest session vs the longest in the previous 30 days
 
     def amount(self, activity: dict) -> float:
@@ -38,8 +38,11 @@ SPORTS = {
     "Ride": Sport("Ride", frozenset({"Ride", "VirtualRide", "MountainBikeRide", "GravelRide", "TrackRide", "Cyclocross"}),
                   "ride", "h", "ride_hours", "long_ride_hours", "baseline_long_ride_hours", "duration_h",
                   frozenset({"hr", "power"}), long_max_increase=0.20),
-    # Counted in summaries and rest days. Load fields come with swim coaching.
-    "Swim": Sport("Swim", frozenset({"Swim", "OpenWaterSwim"}), "swim", "km", None, None, None, None, frozenset()),
+    # Swimming load is distance. Like cycling it has no impact loading, so the longest swim may grow by 20%
+    # (conventional practice). Swim workouts take no targets: pace targets don't reach a Garmin watch, so the
+    # pace goes in each step's text instead (see RULES.md).
+    "Swim": Sport("Swim", frozenset({"Swim", "OpenWaterSwim"}), "swim", "km", "swim_km", "long_swim_km",
+                  "baseline_long_swim_km", "distance_km", frozenset(), long_max_increase=0.20),
 }
 
 DEFAULT_SPORTS = ["Run"]
