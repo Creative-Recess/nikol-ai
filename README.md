@@ -1,7 +1,7 @@
 # Nikol.ai
 
 An AI training coach for endurance athletes, built on intervals.icu.
-It coaches running, cycling and swimming, and plans around other sports and strength as cross-training.
+It coaches running, cycling, swimming and triathlon, and plans around other sports and strength as cross-training.
 It runs inside any AI coding agent that can read files and run commands, such as Claude Code, Codex or Cursor.
 
 ## How it works

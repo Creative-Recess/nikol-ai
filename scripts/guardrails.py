@@ -60,6 +60,8 @@ SCORE_FLARE_ABOVE = 3               # any score above this in the window pauses 
 SCORE_WINDOW_DAYS = 7
 GATED_KINDS = {"strides", "threshold", "interval", "time_trial", "marathon_pace", "hills"}
 KEY_KINDS = {"long", "threshold", "interval", "time_trial", "marathon_pace"}
+HARD_RIDE_KINDS = {"long", "threshold", "interval", "time_trial", "sweet_spot", "hills"}
+CTL_RAMP_WARN = 8.0                 # intervals.icu fitness ramp rate per week, multi-sport plans
 
 # Only percentage and zone HR targets are parsed. Absolute bpm ("120-150bpm") is silently dropped by
 # intervals.icu (tested 24 Sep 2026), so it's rejected below.
@@ -340,21 +342,27 @@ def is_ride(session: dict) -> bool:
     return session.get("kind") == "ride" or session.get("type") in sports.SPORTS["Ride"].types
 
 
-def check_rides(sessions: list[dict], report: Report, exceptions: dict | None = None) -> None:
+def check_rides(sessions: list[dict], report: Report, exceptions: dict | None = None,
+                plan_sports: list[Sport] | None = None) -> None:
     """No ride the day before a long run or a key run session.
 
     A week file can allow a ride before an easy long run with
     "exceptions": {"ride_before_long_run": "reason"}. It then shows as a warning, not a failure.
     Key sessions (threshold, intervals, marathon pace, time trials) never get an exception.
     Only runs are protected: a ride before a key ride is planned like any other session.
+    When the plan coaches cycling too (e.g. a triathlon), riding most days is the training, so only a hard ride
+    workout (or a ride note, whose effort isn't planned) counts. A brick ride on the same day never does.
     """
     exceptions = exceptions or {}
+    coaches_rides = plan_sports is not None and sports.SPORTS["Ride"] in plan_sports
     kinds = {}
     for s in sessions:
         if s.get("kind") in KEY_KINDS and s.get("type") in sports.SPORTS["Run"].types:
             kinds[dt.date.fromisoformat(s["date"])] = s["kind"]
     for s in sessions:
         if not is_ride(s):
+            continue
+        if coaches_rides and s.get("category") == "WORKOUT" and s.get("kind") not in HARD_RIDE_KINDS:
             continue
         next_day = dt.date.fromisoformat(s["date"]) + dt.timedelta(days=1)
         kind = kinds.get(next_day)
@@ -364,6 +372,34 @@ def check_rides(sessions: list[dict], report: Report, exceptions: dict | None = 
             report.warnings.append(f"{s['date']}: ride the day before the long run, allowed: {exceptions['ride_before_long_run']}")
         else:
             report.errors.append(f"{s['date']}: ride the day before a {kind.replace('_', ' ')} run")
+
+
+def check_bricks(sessions: list[dict], report: Report) -> None:
+    """A brick (a run straight off the bike) is a run marked "brick": true on a day with a ride."""
+    ride_days = {s["date"] for s in sessions if is_ride(s)}
+    for s in sessions:
+        if not s.get("brick"):
+            continue
+        label = f"{s['date']} {s['name']}"
+        if s.get("type") not in sports.SPORTS["Run"].types:
+            report.errors.append(f"{label}: only a run can be a brick (the run straight off the bike)")
+        elif s["date"] not in ride_days:
+            report.errors.append(f"{label}: a brick run needs a ride the same day")
+
+
+def check_combined_load(ramp_rate: float | None, report: Report) -> None:
+    """Multi-sport plans: intervals.icu's fitness (CTL) ramp rate across all sports, as a warning.
+
+    Per-sport ramps can each look fine while the total climbs too fast. Up to about 5-8 CTL a week is the
+    conventional sustainable range (coaching practice, not a study), so above 8 is flagged.
+    """
+    if ramp_rate is None:
+        return
+    if ramp_rate > CTL_RAMP_WARN:
+        report.warnings.append(f"Fitness (CTL) ramp rate is {ramp_rate:.1f} a week across all sports, above {CTL_RAMP_WARN:g}: "
+                               "hold total load steady this week")
+    else:
+        report.passes.append(f"Combined load: fitness (CTL) ramp rate {ramp_rate:.1f} a week across all sports")
 
 
 def check_rest_day(week: dict, report: Report) -> None:
@@ -521,13 +557,13 @@ def baseline_history(plan: dict, sport: Sport = sports.SPORTS["Run"]) -> list[tu
     return [(first - dt.timedelta(days=1), float(plan[sport.baseline_key]))]
 
 
-def check_week(week: dict, history: list[tuple[dt.date, float]] | None = None,
+def check_week(week: dict, history: list[tuple[dt.date, float]] | dict[str, list] | None = None,
                scores: list[tuple[dt.date, float]] | None = None, plan: dict | None = None,
                offline: bool = False, weeks_dir: Path | None = None) -> Report:
     """Run every guardrail. Fetches history and injury scores from intervals.icu unless given or offline.
 
-    `history` is the running history as (date, km). It's only used when the plan coaches running; other
-    sports' histories are always fetched (or empty offline).
+    `history` is the running history as (date, km), or a dict of histories by sport name ({"Ride": [...]})
+    in each sport's unit. Sports without a given history are fetched (or empty offline).
     """
     report = Report()
     report.errors.extend(missing_fields(week))
@@ -556,7 +592,7 @@ def check_week(week: dict, history: list[tuple[dt.date, float]] | None = None,
     for sport in plan_sports:
         if not sport.long_key:
             continue
-        given = history if sport.name == "Run" else None
+        given = history.get(sport.name) if isinstance(history, dict) else (history if sport.name == "Run" else None)
         sport_history = _history(sport, given, offline, oldest, start, week, weeks_dir, report)
         planned = [(dt.date.fromisoformat(s["date"]), float(s[sport.field])) for s in sessions
                    if s.get("category") == "WORKOUT" and s.get("type") in sport.types]
@@ -566,7 +602,13 @@ def check_week(week: dict, history: list[tuple[dt.date, float]] | None = None,
     pool_length_m = (settings().get("swim") or {}).get("pool_length_m")
     for s in workouts:
         check_workout_text(s, report, pool_length_m)
-    check_rides(sessions, report, week.get("exceptions"))
+    check_rides(sessions, report, week.get("exceptions"), plan_sports)
+    check_bricks(sessions, report)
+    if len(plan_sports) > 1 and not offline:
+        import icu
+
+        rows = icu.wellness(str(dt.date.today() - dt.timedelta(days=1)), str(dt.date.today()))
+        check_combined_load(next((r.get("rampRate") for r in reversed(rows) if r.get("rampRate") is not None), None), report)
     check_availability(sessions, plan, report)
     check_schedule(sessions, plan, report)
     check_rest_day(week, report)

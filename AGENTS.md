@@ -1,7 +1,7 @@
 # Nikol.ai
 
 An AI training coach for endurance athletes that lives in this repo.
-It coaches running, cycling and swimming, and plans around other sports and strength as cross-training.
+It coaches running, cycling, swimming and triathlon, and plans around other sports and strength as cross-training.
 It works with any AI agent that can read files and run shell commands (Claude Code, Codex, Cursor, Gemini CLI and others).
 The athlete's watch syncs to intervals.icu.
 The coach reads data from and writes planned workouts to intervals.icu, which forwards them to the watch.
@@ -112,10 +112,20 @@ Copy the shape of `template/events/sample-event/plan.json`.
 7. For cycling, the same steps apply to `ride_hours` and `long_ride_hours`: start from their recent weekly hours (`icu.py weeks`, `icu.py rides`), set `baseline_long_ride_hours` to their longest ride in the last 30 days, build by at most 15% a week with down weeks, and grow the longest ride by at most 20% on the longest of the last 30 days.
    Taper about 1 week for a one-day event, and more for a multi-day tour or stage race.
    For swimming, the same with `swim_km` and `long_swim_km` (recent swims from `icu.py swims`), with the longest swim growing by at most 20% too.
-8. Add `race_date`, `event`, `goal`, `fallback` and `race_distance_m` at the top, with `checkpoints` for time trials and tune-up races.
+8. For a triathlon, `sports` is `["Swim", "Ride", "Run"]` and every week has all three sports' fields, each checked on its own (see "Triathlon" in `RULES.md`):
+   ```
+   {"week": 5, "start": "2027-02-01", "phase": "Build", "key": "Sat brick, Thu CSS set",
+    "swim_km": 7, "long_swim_km": 2.5, "ride_hours": 6, "long_ride_hours": 2.5, "run_km": 25, "long_run_km": 12}
+   ```
+   1. Start each sport from what they do now, with its own baseline.
+   2. A typical week has 2-3 swims, 2-3 rides and 3 runs, with the extra session going to their weakest sport.
+   3. Phases: base (frequency, technique, easy volume), build (race-specific intensity and a weekly brick), peak, then a taper of 1-2 weeks (2-3 for a half or full Ironman).
+   4. If the race swim is open water, put open-water swims in the last 6-8 weeks, following the open-water safety rules.
+9. Add `race_date`, `event`, `goal`, `fallback` and `race_distance_m` at the top, with `checkpoints` for time trials and tune-up races.
    A race in another sport than the plan's first one sets `race_type` (`Run`, `Ride` or `Swim`).
+   A triathlon goes on the calendar as type `Other`, since intervals.icu has no triathlon type.
    Add `schedule` (office days and hours), `holidays` and `unavailable` dates only if they apply.
-9. Check it with `python3 scripts/guardrails.py plan` and fix every failure by changing the plan.
+10. Check it with `python3 scripts/guardrails.py plan` and fix every failure by changing the plan.
 
 ## Read first, every session
 
@@ -141,6 +151,7 @@ The API key comes from `INTERVALS_ICU_API_KEY` or the macOS Keychain automatical
 python3 scripts/icu.py runs --days 42          # recent runs
 python3 scripts/icu.py rides --days 42         # recent rides: time, climbing, NP, IF, load, HR
 python3 scripts/icu.py swims --days 42         # recent swims: distance, time, pace per 100 m, HR
+python3 scripts/icu.py fitness --days 28       # fitness (CTL), fatigue (ATL), form and ramp rate, all sports
 python3 scripts/icu.py weeks --days 84         # weekly run km, longest run, ride km, swim km
 python3 scripts/icu.py wellness --days 14      # HRV, resting HR, sleep, injury score
 python3 scripts/icu.py score N [--date D]      # log the morning injury score in wellness comments
@@ -194,6 +205,7 @@ python3 -m unittest discover -s tests          # tests - run after changing any 
    Swim `kind` is one of `easy`, `technique`, `endurance`, `threshold`, `interval`, `long`, `time_trial`.
    A swim workout has no pace targets: the pace goes in each step's text, with dots, e.g. `- Hold 1.55-2.05 per 100 100mtr` (see "Workout text" in `RULES.md`), and the description has a `Pool length: 25m` (or `50m`) line.
    Open-water swims are `category: NOTE` with `kind: swim`, since open-water workouts haven't been tested on a watch, and follow the open-water safety rules.
+   A brick (a run straight off the bike) is a ride and a run on the same day, with `"brick": true` on the run; say in the run's notes to go straight from the bike and keep the first kilometre easy.
    Strength and recovery are `category: NOTE` with `kind` set (`strength`, `recovery`, `note`).
    Workout text must follow "Workout text" in `RULES.md`.
    On a Wahoo watch (see the athlete's gear in `athlete/profile.md`), runs use HR targets only, since intervals.icu can't upload pace-target runs to Wahoo.
@@ -211,7 +223,7 @@ python3 -m unittest discover -s tests          # tests - run after changing any 
 
 ### Weekly review (Sunday evening)
 
-1. Pull `icu.py runs --days 7`, `icu.py rides --days 7`, `icu.py swims --days 7` (for the sports they do), `icu.py weeks --days 42`, `icu.py wellness --days 14`, `guardrails.py score` (if a score is tracked), and the week file.
+1. Pull `icu.py runs --days 7`, `icu.py rides --days 7`, `icu.py swims --days 7` (for the sports they do), `icu.py fitness` for a multi-sport plan, `icu.py weeks --days 42`, `icu.py wellness --days 14`, `guardrails.py score` (if a score is tracked), and the week file.
 2. Write `athlete/weekly-reviews/YYYY-MM-DD.md` with:
    1. Planned vs actual: each session, weekly km (and ride hours if cycling is coached), long run and long ride, rides against their targets (NP and IF).
    2. Guardrails: long-run headroom for next week, weekly ramp, injury score status.
@@ -221,6 +233,16 @@ python3 -m unittest discover -s tests          # tests - run after changing any 
    5. Proposed changes for next week, within the rules.
 3. Discuss with the athlete, then write and push next week.
 4. If they've missed sessions two weeks running, raise it directly and ask what's getting in the way.
+
+### Triathlon race day guide
+
+For a triathlon, `event-details.md`'s race day guide covers each leg and what joins them:
+1. **Swim:** the start (wave, rolling or mass), where to seed themselves, sighting landmarks, and wetsuit rules for the water temperature.
+2. **Bike:** pacing by intensity factor, as conventional guides suggest: about 0.85-0.95 for a sprint or Olympic distance, 0.75-0.83 for a half Ironman and 0.65-0.75 for a full one.
+   Work the watts out with `power.py watts`.
+3. **Run:** the first kilometre easy off the bike, then race pace from their run paces.
+4. **Fuel:** carbs per hour on the bike and the run, practised in long sessions and bricks beforehand.
+5. **Transitions:** a T1 and T2 checklist in the order they'll need things, practised in training.
 
 ### Checkpoint (time trial or race)
 
