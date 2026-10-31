@@ -71,7 +71,9 @@ class OtherSportsInARunningPlanTest(unittest.TestCase):
 
 class PlanWithoutRunningTest(unittest.TestCase):
     """A plan that doesn't coach running skips the running checks instead of crashing on missing run_km."""
-    PLAN = {"sports": ["Ride"], "weeks": [{"week": 1, "start": str(MON)}, {"week": 2, "start": str(MON + dt.timedelta(days=7))}]}
+    PLAN = {"sports": ["Ride"], "baseline_long_ride_hours": 3, "weeks": [
+        {"week": 1, "start": str(MON), "ride_hours": 8, "long_ride_hours": 3},
+        {"week": 2, "start": str(MON + dt.timedelta(days=7)), "ride_hours": 9, "long_ride_hours": 3.5}]}
 
     def test_plan_check_skips_running(self):
         report = g.check_plan(self.PLAN)

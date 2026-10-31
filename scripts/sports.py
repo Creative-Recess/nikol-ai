@@ -14,19 +14,32 @@ class Sport:
     name: str                 # the intervals.icu workout type used when pushing ("Run")
     types: frozenset[str]     # intervals.icu activity types that count as this sport
     noun: str                 # "run", for messages
-    unit: str                 # what weekly load and the longest session are measured in
+    unit: str                 # what weekly load and the longest session are measured in: "km" or "h"
     weekly_key: str | None    # plan.json week field for the weekly target, if the sport is coached
     long_key: str | None      # plan.json week field for the longest session
     baseline_key: str | None  # plan.json field for the longest session in the 30 days before the plan
+    field: str | None         # week-file workout field holding the session's planned amount, in `unit`
+    targets: frozenset[str]   # target types its workout text may use: "hr", "pace", "power"
+    long_max_increase: float = 0.10  # longest session vs the longest in the previous 30 days
+
+    def amount(self, activity: dict) -> float:
+        """A completed intervals.icu activity's amount in this sport's unit."""
+        if self.unit == "h":
+            return (activity.get("moving_time") or 0) / 3600
+        return (activity.get("distance") or 0) / 1000
 
 
 SPORTS = {
+    # Running load is distance. The 10% long-run limit is from Frandsen et al. 2025 (see RULES.md).
     "Run": Sport("Run", frozenset({"Run", "VirtualRun", "TrailRun"}), "run", "km",
-                 "run_km", "long_run_km", "baseline_long_run_km"),
-    # Counted in summaries and rest days. Load fields come with coaching for each sport.
+                 "run_km", "long_run_km", "baseline_long_run_km", "distance_km", frozenset({"hr", "pace"})),
+    # Cycling load is time, since distance depends on terrain, wind and the bike. Cycling has no impact
+    # loading, so the longest ride may grow by 20% (conventional coaching practice, not a study).
     "Ride": Sport("Ride", frozenset({"Ride", "VirtualRide", "MountainBikeRide", "GravelRide", "TrackRide", "Cyclocross"}),
-                  "ride", "km", None, None, None),
-    "Swim": Sport("Swim", frozenset({"Swim", "OpenWaterSwim"}), "swim", "km", None, None, None),
+                  "ride", "h", "ride_hours", "long_ride_hours", "baseline_long_ride_hours", "duration_h",
+                  frozenset({"hr", "power"}), long_max_increase=0.20),
+    # Counted in summaries and rest days. Load fields come with swim coaching.
+    "Swim": Sport("Swim", frozenset({"Swim", "OpenWaterSwim"}), "swim", "km", None, None, None, None, frozenset()),
 }
 
 DEFAULT_SPORTS = ["Run"]

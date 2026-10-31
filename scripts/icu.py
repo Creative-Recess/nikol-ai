@@ -6,6 +6,7 @@ The API key comes from the INTERVALS_ICU_API_KEY environment variable or, on mac
 Usage:
     python3 scripts/icu.py athlete
     python3 scripts/icu.py runs --days 42            # recent runs, one per line
+    python3 scripts/icu.py rides --days 42           # recent rides: time, climbing, NP, IF, load, HR
     python3 scripts/icu.py weeks --days 84           # weekly run km, run count, longest run, ride km, swim km
     python3 scripts/icu.py wellness --days 14        # HRV, resting HR, sleep, injury score
     python3 scripts/icu.py score 2 [--date DATE]     # log the morning injury score (default today)
@@ -135,7 +136,7 @@ def events(oldest: str, newest: str) -> list[dict]:
 def history(sport: Sport, oldest: str, newest: str) -> list[tuple[dt.date, float]]:
     """Completed sessions of one sport as (date, amount in the sport's unit), oldest first."""
     return sorted(
-        (dt.date.fromisoformat(a["start_date_local"][:10]), (a.get("distance") or 0) / 1000)
+        (dt.date.fromisoformat(a["start_date_local"][:10]), sport.amount(a))
         for a in activities(oldest, newest)
         if a.get("type") in sport.types
     )
@@ -326,6 +327,22 @@ def print_runs(days: int) -> None:
               f"{a.get('name') or ''}")
 
 
+def print_rides(days: int) -> None:
+    oldest, newest = _window(days)
+    ride = sports.SPORTS["Ride"]
+    for a in sorted(activities(oldest, newest), key=lambda a: a["start_date_local"]):
+        if a.get("type") not in ride.types:
+            continue
+        km = (a.get("distance") or 0) / 1000
+        h, m = divmod(round(ride.amount(a) * 60), 60)
+        np_ = a.get("icu_weighted_avg_watts")
+        intensity = a.get("icu_intensity")
+        print(f"{a['start_date_local'][:10]}  {km:5.1f} km  {h}:{m:02d} h  "
+              f"{(a.get('total_elevation_gain') or 0):5.0f} m  NP {np_ or '-'}  "
+              f"IF {f'{intensity / 100:.2f}' if intensity else '-'}  load {a.get('icu_training_load') or '-'}  "
+              f"HR {a.get('average_heartrate') or '-'}  {a.get('name') or ''}")
+
+
 def print_weeks(days: int) -> None:
     oldest, newest = _window(days)
     run, ride, swim = (sports.SPORTS[n] for n in ("Run", "Ride", "Swim"))
@@ -375,9 +392,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("athlete")
-    for name in ("runs", "weeks", "wellness"):
+    for name in ("runs", "rides", "weeks", "wellness"):
         p = sub.add_parser(name)
-        p.add_argument("--days", type=int, default={"runs": 42, "weeks": 84, "wellness": 14}[name])
+        p.add_argument("--days", type=int, default={"runs": 42, "rides": 42, "weeks": 84, "wellness": 14}[name])
     p_score = sub.add_parser("score", help="Log the morning injury score in wellness comments")
     p_score.add_argument("score", type=float)
     p_score.add_argument("--date", default=str(dt.date.today()))
@@ -398,6 +415,8 @@ def main() -> None:
             print(json.dumps({k: a.get(k) for k in ("id", "name", "timezone")}, indent=2))
         elif args.command == "runs":
             print_runs(args.days)
+        elif args.command == "rides":
+            print_rides(args.days)
         elif args.command == "weeks":
             print_weeks(args.days)
         elif args.command == "wellness":
