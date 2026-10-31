@@ -1,7 +1,7 @@
 # Nikol.ai
 
 An AI training coach for endurance athletes, built on intervals.icu.
-It coaches running and cycling, and plans around other sports and strength as cross-training.
+It coaches running, cycling and swimming, and plans around other sports and strength as cross-training.
 It runs inside any AI coding agent that can read files and run commands, such as Claude Code, Codex or Cursor.
 
 ## How it works
@@ -17,7 +17,7 @@ nikol.ai only talks to intervals.icu, so it works with any watch that syncs to i
 
 | Device | Status | Notes |
 |---|---|---|
-| Garmin | Supported, tested | The most complete data: activities, HRV, sleep, resting HR, and planned workouts with pace or HR targets. Ride workouts with power or HR targets tested on an Edge 840 and a Forerunner 255S. The Garmin Connect app doesn't show the steps of these workouts, but the devices do. An Edge may keep showing its own Daily Suggested Workout next to them if that can't be turned off |
+| Garmin | Supported, tested | The most complete data: activities, HRV, sleep, resting HR, and planned workouts with pace or HR targets. Ride workouts with power or HR targets tested on an Edge 840 and a Forerunner 255S, and pool swim workouts on the Forerunner (pace targets don't reach the watch for swims, so the pace is written into each step). The Garmin Connect app doesn't show the steps of these workouts, but the devices do. An Edge may keep showing its own Daily Suggested Workout next to them if that can't be turned off |
 | COROS | Supported, not yet tested end to end | Activities, basic wellness, and planned workouts with pace or HR targets. COROS can't take pace and HR targets in the same workout, which the guardrails already prevent. Check the first pushed workout on the watch |
 | Wahoo | Partial | Fine as a bike computer for ride data (ride workouts not yet tested). Running workouts only upload with HR targets, so pace sessions won't reach a Wahoo device |
 | Polar | Not supported | Sends activities but can't receive planned workouts |
@@ -28,7 +28,7 @@ Connect your watch to intervals.icu directly, not through Strava: activities imp
 ## What you need
 
 1. A supported watch (see above).
-2. A free [intervals.icu](https://intervals.icu) account connected to your watch (Settings → Connections, with **Upload planned workouts** ticked), and a Run threshold pace set in its sport settings (and an FTP in the Ride settings if you ride).
+2. A free [intervals.icu](https://intervals.icu) account connected to your watch (Settings → Connections, with **Upload planned workouts** ticked), and a Run threshold pace set in its sport settings (an FTP in the Ride settings if you ride, and a threshold pace in the Swim settings if you swim).
 3. An intervals.icu API key (Settings → Developer).
 4. An AI coding agent that can read files and run shell commands, and Python 3.9+ (standard library only).
    It runs on macOS, Linux and Windows.
@@ -54,6 +54,7 @@ Ask things like:
 - "Write and push next week"
 - "I ran the 5 km time trial in 24:30"
 - "I did a 20-minute FTP test at 250 W"
+- "I swam a 400 m in 7:00 and a 200 m in 3:20"
 
 The coach's instructions are in `AGENTS.md`, and the coaching rules in `RULES.md`.
 
@@ -65,7 +66,7 @@ The coach's instructions are in `AGENTS.md`, and the coaching rules in `RULES.md
 2. **Plain files and scripts, no third-party tools.**
    Markdown instructions plus standard-library Python work in any agent, with no supply chain, and the API key stays on your computer.
 3. **Maths in code, not in the model.**
-   The most common failures reported with AI coaches are wrong dates, pace arithmetic errors and ramping load too fast, so scripts do all of it (`paces.py` for running, `power.py` for cycling).
+   The most common failures reported with AI coaches are wrong dates, pace arithmetic errors and ramping load too fast, so scripts do all of it (`paces.py` for running, `power.py` for cycling, `swim.py` for swimming).
 4. **A fixed plan, adjusted within bounds.**
    The week-by-week skeleton is set up front.
    Weekly reviews can only move, shorten or swap sessions within the rules, and anything bigger is a logged decision.
