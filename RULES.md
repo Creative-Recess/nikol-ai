@@ -131,7 +131,7 @@ HR targets, for example with a threshold HR of 170 (`% = bpm / LTHR x 100`):
 | Target | bpm |
 |---|---|
 | `69-86% LTHR` | 117-146 (easy and long runs) |
-| `69-80% LTHR` | 117-136 (recovery) |
+| `69-78% LTHR` | 117-133 (recovery) |
 | `Z2 HR` | Zone 2 as set in intervals.icu |
 
 **Easy or long run (tested):**
