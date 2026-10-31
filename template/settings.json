@@ -19,11 +19,14 @@
   },
   "ride": {
     "ftp": null,
-    "threshold_hr": null
+    "threshold_hr": null,
+    "max_hr": null,
+    "power_meter": null
   },
   "injury_score": {
     "name": null,
     "side": null,
-    "note": "The body part scored 0-10 each morning and logged as 'name: N' in intervals.icu wellness comments (icu.py score N). Quality work pauses if any score in the last 7 days is above 3/10 or the weekly average is rising. Leave name null to not track one."
+    "sports": ["Run"],
+    "note": "The body part scored 0-10 each morning and logged as 'name: N' in intervals.icu wellness comments (icu.py score N). Quality work pauses if any score in the last 7 days is above 3/10 or the weekly average is rising. Leave name null to not track one. 'sports' lists whose quality work it pauses: add \"Ride\" for an injury riding also aggravates (e.g. a knee)."
   }
 }

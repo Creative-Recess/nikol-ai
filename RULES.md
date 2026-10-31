@@ -20,15 +20,23 @@ They add to these rules and can tighten them, but never loosen an enforced one.
 6. **(enforced) A full rest day every full Monday-Sunday week:** no run, ride or swim, and no leg strength (upper body, mobility and walking are fine).
    It goes on the calendar as a `recovery` note carrying the week's recovery plan.
    A logged exception (`"exceptions": {"no_rest_day": "..."}`) is only for unusual weeks such as a cycling tour or a training camp.
+7. **(enforced, when the plan coaches cycling) Ride load is measured in hours.**
+   Weekly ride hours follow the same 15% and 30% ramp and 10% target tolerance as run km.
+   No ride is more than 20% longer than the longest ride in the previous 30 days.
+   These limits are conventional coaching practice, not from a study like the running ones: cycling has no impact loading, so the longest ride can grow faster than the long run.
 
 ## Rides
 
-1. **(enforced) No ride the day before a key session, or before a long run without a logged exception.**
+1. **(enforced) No ride the day before a key run session, or before a long run without a logged exception.**
+   This covers rides written as notes and ride workouts.
    A ride before an easy long run can be allowed in a week file with `"exceptions": {"ride_before_long_run": "..."}`.
    Key sessions never get an exception.
 2. Going over a ride's target gets flagged in the weekly review, because group rides overriding the plan is a common pattern.
 3. Cycling load never counts as evidence of running readiness.
    A strong aerobic engine can hide the real limiter (calves, tendons).
+4. **When the plan coaches cycling**, rides are workouts pushed to the bike computer with power targets (`% FTP`), or HR targets without a power meter.
+   Most riding is endurance (zones 1-2), with at most two or three hard sessions (sweet spot, threshold, intervals) a week, and an easy day or rest before each one.
+5. A ride the athlete does their own way (a group ride) stays a note with an NP cap, as cross-training.
 
 ## Availability and schedule
 
@@ -52,8 +60,9 @@ Leave it empty to not track one.
 3. By the next morning it must be back to the usual score.
    If not, the next run is shortened or swapped for cross-training.
 4. If the weekly trend rises, progression pauses.
-5. **(enforced) Quality work (strides, hills, threshold, intervals, race pace, time trials) is allowed unless it flares:** any morning score above 3/10 in the last 7 days, or the 7-day average rising more than 0.5 over the previous 7 days, pauses it.
+5. **(enforced) Quality work in running (strides, hills, threshold, intervals, race pace, time trials) is allowed unless it flares:** any morning score above 3/10 in the last 7 days, or the 7-day average rising more than 0.5 over the previous 7 days, pauses it.
    No scores logged means assumed fine, so logging daily matters.
+   For an injury that riding also aggravates (e.g. a knee), `injury_score.sports` in `athlete/settings.json` (`["Run", "Ride"]`) gates hard rides too.
    Based on Silbernagel's pain-monitoring model.
 
 ## Other pain
@@ -93,7 +102,7 @@ Any pain above 3/10, or anything that changes gait, ends that run and triggers a
 
 ## Workout text
 
-What the coach writes in a run's `description` in a week file.
+What the coach writes in a workout's `description` in a week file.
 Only the lines starting with `-` are parsed as workout steps: the notes above them can say anything.
 Everything marked **tested** was pushed to intervals.icu (Sep-Oct 2026) and checked in the parsed workout, with a Garmin watch.
 COROS takes the same text, as long as each workout keeps to one target type.
@@ -102,6 +111,8 @@ A Wahoo device only receives runs with HR targets, so pace sessions can't be sen
 1. **(enforced) One target type per workout** (Garmin and COROS both need this).
    Easy and long runs use HR only.
    Sessions (threshold, marathon pace, time trials) use pace only, including warm-up and cool-down.
+   Rides use power (`% FTP`, power zones or watts), or HR without a power meter.
+   Pace targets aren't used for rides, and power targets aren't used for runs.
 2. **(enforced) HR targets are percentages or zones.**
    `69-86% LTHR` works (**tested**).
    Absolute bpm (`120-150bpm`, `150bpm HR`) is **silently dropped** (**tested**).
@@ -109,6 +120,7 @@ A Wahoo device only receives runs with HR targets, so pace sessions can't be sen
    `5:00/km pace` works, bare `5:00/km` is dropped.
 4. **(enforced) `m` means minutes.**
    Use `mtr` for metres (`400mtr`), or `km`.
+   On runs, `400m` is almost always a mistake for metres, so it's rejected; on rides, `120m` (2 hours) is fine.
 5. **(enforced) Every step has a target.**
 6. **Strides go in the notes, not as steps**, e.g. "Finish with 6x20 s strides, press lap for each".
    They'd mix target types, and HR can't track a 20-second effort anyway.
@@ -155,5 +167,24 @@ Main Set 3x
 Cooldown
 - 10km 5:45-6:20/km pace
 ```
+
+**Rides (tested on a Garmin Edge 840 and Forerunner 255S, Oct 2026: every step arrived with its target; the Edge shows a ramp as its power range, and the cadence target):**
+```
+Warmup
+- ramp 10m 50-70% 90rpm
+
+Main Set 3x
+- 5m 88-94%
+- 3m 55%
+
+Cooldown
+- 10m 50-60%
+```
+A bare `%` is % FTP, and `90rpm` adds a cadence target.
+Power zones (`- 15m Z2`), watts (`- 5m 200-220w`) and HR (`- 20m 69-83% LTHR`, `- 10m Z1 HR`) also work.
+`power.py` turns % FTP into watts for the notes.
+
+The Garmin Connect app doesn't show the steps of workouts sent from intervals.icu (any sport), only the name and notes.
+Check a workout on the watch or bike computer instead.
 
 Syntax adapted from [hhopke/intervals-icu-mcp](https://github.com/hhopke/intervals-icu-mcp) (MIT), which adapts [intervals-icu-workout-parser](https://github.com/MarvinNazari/intervals-icu-workout-parser) by Marvin Nazari (MIT).

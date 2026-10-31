@@ -50,7 +50,6 @@ def injury_score_name() -> str | None:
     score = settings().get("injury_score") or {}
     return (score.get("name") or "").strip().lower() or None
 
-LONG_RUN_MAX_INCREASE = 0.10        # single run vs longest run in the previous 30 days
 LONG_RUN_WINDOW_DAYS = 30
 WEEKLY_MAX_INCREASE = 0.15          # vs the last full training week
 TWO_WEEK_MAX_INCREASE = 0.30        # vs the full week before that
@@ -67,6 +66,11 @@ KEY_KINDS = {"long", "threshold", "interval", "time_trial", "marathon_pace"}
 HR_TARGET_RE = re.compile(r"%\s*(?:LT)?HR|Z\d(?:-Z\d)?\s*HR", re.IGNORECASE)
 BPM_RE = re.compile(r"\d\s*bpm", re.IGNORECASE)
 PACE_TARGET_RE = re.compile(r"\bpace\b", re.IGNORECASE)
+# Power: % FTP ("88-94%"), watts ("200-220w"), power zones ("Z2", not "Z2 HR" or "Z2 Pace") and % MMP.
+POWER_TARGET_RE = re.compile(
+    r"\d\s*%(?!\s*(?:LT)?HR\b)(?!\s*pace\b)|\b\d+(?:-\d+)?\s*w\b|\bZ\d(?:-Z\d)?\b(?!\s*(?:HR|pace)\b)",
+    re.IGNORECASE)
+TARGET_NAMES = {"hr": "HR", "pace": "pace", "power": "power"}
 BARE_PACE_RE = re.compile(r"\d:\d\d/km(?!\s*pace)(?!-)", re.IGNORECASE)
 # "400m" means 400 minutes to intervals.icu. Anything 100m or longer is almost certainly a distance mistake.
 MINUTES_AS_METRES_RE = re.compile(r"(?<![\d.])(\d{3,})m\b")
@@ -141,19 +145,19 @@ def check_long_runs(history: list[tuple[dt.date, float]], planned: list[tuple[dt
             report.errors.append(f"{day}: no {sport.noun}s in the previous {LONG_RUN_WINDOW_DAYS} days to compare a "
                                  f"{km:g} {sport.unit} {sport.noun} against")
             continue
-        limit = max(prior) * (1 + LONG_RUN_MAX_INCREASE)
+        limit = max(prior) * (1 + sport.long_max_increase)
         if km > limit + 1e-9:
-            report.errors.append(f"{day}: {km:g} {sport.unit} is more than 10% over the 30-day longest {sport.noun} "
+            report.errors.append(f"{day}: {km:g} {sport.unit} is more than {sport.long_max_increase:.0%} over the 30-day longest {sport.noun} "
                                  f"({max(prior):g} {sport.unit}, limit {limit:.1f} {sport.unit})")
     longest = max((k for _, k in planned), default=0)
     if planned and len(report.errors) == errors_before:
         report.passes.append(f"Long-{sport.noun} rule: longest planned {sport.noun} {longest:g} {sport.unit} "
-                             "is within 10% of the 30-day max")
+                             f"is within {sport.long_max_increase:.0%} of the 30-day max")
 
 
 def planned_amount(sessions: list[dict], sport: Sport) -> float:
     """The week's planned load for one sport, in the sport's unit."""
-    return sum(s.get("distance_km", 0) for s in sessions
+    return sum(s.get(sport.field, 0) for s in sessions
                if s.get("category") == "WORKOUT" and s.get("type") in sport.types)
 
 
@@ -193,25 +197,46 @@ def _check_weekly_sport(week: dict, weeks: dict[int, dict], this: dict, sport: S
             report.errors.append(f"{planned:g} {unit} of {sport.noun}s is more than 30% over two full weeks ago ({prev2:g} {unit})")
 
 
+def step_targets(line: str) -> set[str]:
+    """The target types a workout step line uses: "hr", "pace" and/or "power"."""
+    found = set()
+    if HR_TARGET_RE.search(line):
+        found.add("hr")
+    if PACE_TARGET_RE.search(line):
+        found.add("pace")
+    if POWER_TARGET_RE.search(line):
+        found.add("power")
+    return found
+
+
 def check_workout_text(session: dict, report: Report) -> None:
     # Only step lines are parsed by intervals.icu. The free-text notes above them can say anything.
-    text = "\n".join(l for l in session.get("description", "").splitlines() if l.strip().startswith("-"))
+    steps = [l.strip() for l in session.get("description", "").splitlines() if l.strip().startswith("-")]
+    text = "\n".join(steps)
     label = f"{session['date']} {session['name']}"
-    has_hr = bool(HR_TARGET_RE.search(text))
-    has_pace = bool(PACE_TARGET_RE.search(text))
-    if has_hr and has_pace:
-        report.errors.append(f"{label}: mixes HR and pace targets (Garmin and COROS only handle one target type per workout)")
-    if not has_hr and not has_pace:
-        report.errors.append(f"{label}: no HR or pace target in the workout text")
+    sport = sports.sport_of(session.get("type")) or sports.SPORTS["Run"]
+    if not sport.targets:
+        report.errors.append(f"{label}: {sport.noun} workouts aren't coached yet, so write it as a note (kind \"{sport.noun}\")")
+        return
+    used = set().union(*(step_targets(s) for s in steps)) if steps else set()
+    if len(used) > 1:
+        names = " and ".join(TARGET_NAMES[x] for x in sorted(used))
+        report.errors.append(f"{label}: mixes {names} targets (Garmin and COROS only handle one target type per workout)")
+    if not used:
+        allowed = " or ".join(TARGET_NAMES[x] for x in sorted(sport.targets))
+        report.errors.append(f"{label}: no {allowed} target in the workout text")
+    for x in sorted(used - sport.targets):
+        report.errors.append(f"{label}: {TARGET_NAMES[x]} targets aren't used for {sport.noun}s")
     if BPM_RE.search(text):
         report.errors.append(f"{label}: absolute bpm targets are silently dropped. Use % LTHR (e.g. 69-86% LTHR)")
     if BARE_PACE_RE.search(text):
         report.errors.append(f"{label}: absolute pace without the word 'pace' is silently dropped")
-    if MINUTES_AS_METRES_RE.search(text):
+    # A 2-hour ride step written "120m" is fine. On runs and swims, "400m" is almost always meant as metres.
+    if sport.unit == "km" and MINUTES_AS_METRES_RE.search(text):
         report.errors.append(f"{label}: '{MINUTES_AS_METRES_RE.search(text).group(0)}' means minutes. Use 'mtr' for metres")
-    for line in text.splitlines():
-        if line.strip().startswith("-") and not (HR_TARGET_RE.search(line) or PACE_TARGET_RE.search(line)):
-            report.errors.append(f"{label}: step '{line.strip()}' has no target")
+    for line in steps:
+        if not step_targets(line):
+            report.errors.append(f"{label}: step '{line}' has no target")
 
 
 def check_availability(sessions: list[dict], plan: dict, report: Report) -> None:
@@ -253,34 +278,44 @@ def check_schedule(sessions: list[dict], plan: dict, report: Report) -> None:
     for day, items in sorted(by_day.items()):
         strength = {x["strength"] for x in items if x.get("strength")}
         morning_strength = {x["strength"] for x in items if x.get("strength") and x.get("time") != "evening"}
-        rides = [x for x in items if x.get("kind") == "ride"]
+        rides = [x for x in items if is_ride(x)]
+        # A ride written as a note has no planned duration, so its morning can't be timed.
+        untimed_ride = any(x.get("kind") == "ride" for x in items)
+        morning = [x for x in items if x.get("time") != "evening"]
         weekday = dt.date.fromisoformat(day).strftime("%a")
         flexible = weekday in wfh or day in holidays
         if morning_strength and rides:
             report.errors.append(f"{day}: strength {'/'.join(sorted(morning_strength))} after a ride. Mark it \"time\": \"evening\"")
         if "C" in strength and strength & LEG_STRENGTH:
             report.errors.append(f"{day}: upper-body strength on a leg strength day")
-        if budget is not None and weekday in office and not flexible and not rides:
-            minutes = sum(x.get("distance_km", 0) for x in items if x.get("type") == "Run") * EASY_MIN_PER_KM
+        if budget is not None and weekday in office and not flexible and not untimed_ride:
+            minutes = sum(x.get("distance_km", 0) for x in morning if x.get("type") == "Run") * EASY_MIN_PER_KM
+            minutes += sum(x.get("duration_h", 0) for x in morning if x.get("type") in sports.SPORTS["Ride"].types) * 60
             minutes += sum(STRENGTH_MIN.get(x, 0) for x in morning_strength)
             if minutes > budget:
                 report.errors.append(f"{day} ({weekday}, office day): about {minutes:.0f} min won't finish by {done_by}")
 
 
+def is_ride(session: dict) -> bool:
+    """A ride written as a note (cross-training) or pushed as a ride workout."""
+    return session.get("kind") == "ride" or session.get("type") in sports.SPORTS["Ride"].types
+
+
 def check_rides(sessions: list[dict], report: Report, exceptions: dict | None = None) -> None:
-    """No ride the day before a long run or a key session.
+    """No ride the day before a long run or a key run session.
 
     A week file can allow a ride before an easy long run with
     "exceptions": {"ride_before_long_run": "reason"}. It then shows as a warning, not a failure.
     Key sessions (threshold, intervals, marathon pace, time trials) never get an exception.
+    Only runs are protected: a ride before a key ride is planned like any other session.
     """
     exceptions = exceptions or {}
     kinds = {}
     for s in sessions:
-        if s.get("kind") in KEY_KINDS:
+        if s.get("kind") in KEY_KINDS and s.get("type") in sports.SPORTS["Run"].types:
             kinds[dt.date.fromisoformat(s["date"])] = s["kind"]
     for s in sessions:
-        if s.get("kind") != "ride":
+        if not is_ride(s):
             continue
         next_day = dt.date.fromisoformat(s["date"]) + dt.timedelta(days=1)
         kind = kinds.get(next_day)
@@ -313,9 +348,12 @@ def check_rest_day(week: dict, report: Report) -> None:
         report.errors.append("No rest day this week (a day with no run, no ride and no leg strength)")
 
 
-def check_gates(sessions: list[dict], cleared: bool, reason: str, report: Report) -> None:
+def check_gates(sessions: list[dict], cleared: bool, reason: str, report: Report,
+                gated_sports: list[str] | None = None) -> None:
+    """Quality work in the sports the injury score covers pauses while it flares (runs, unless settings say otherwise)."""
+    types = set().union(*(sports.SPORTS[n].types for n in (gated_sports or ["Run"])))
     # Gate on explicit fields only. Text search would trip on notes like "no strides this week".
-    gated = [s for s in sessions if s.get("kind") in GATED_KINDS or s.get("strides")]
+    gated = [s for s in sessions if s.get("type") in types and (s.get("kind") in GATED_KINDS or s.get("strides"))]
     if gated and not cleared:
         for s in gated:
             report.errors.append(f"{s['date']} {s['name']}: {s.get('kind')} is paused ({reason})")
@@ -335,7 +373,7 @@ def provisional_runs(weeks_dir: Path, today: dt.date, before: dt.date, exclude_s
             if s.get("category") == "WORKOUT" and s.get("type") in sport.types:
                 day = dt.date.fromisoformat(s["date"])
                 if today <= day < before:
-                    out.append((day, float(s["distance_km"])))
+                    out.append((day, float(s[sport.field])))
     return out
 
 
@@ -407,8 +445,9 @@ def _check_plan_sport(plan: dict, weeks: list[dict], sport: Sport, report: Repor
         long_amount = w.get(long_key)
         if long_amount:
             prior = [k for d, k in longs if 0 < (start - d).days <= LONG_RUN_WINDOW_DAYS]
-            if prior and long_amount > max(prior) * (1 + LONG_RUN_MAX_INCREASE) + 1e-9:
-                report.errors.append(f"{label}: long {sport.noun} {long_amount:g} {unit} is more than 10% over the "
+            if prior and long_amount > max(prior) * (1 + sport.long_max_increase) + 1e-9:
+                report.errors.append(f"{label}: long {sport.noun} {long_amount:g} {unit} is more than "
+                                     f"{sport.long_max_increase:.0%} over the "
                                      f"30-day longest ({max(prior):g} {unit})")
             longs.append((start, float(long_amount)))
 
@@ -416,7 +455,6 @@ def _check_plan_sport(plan: dict, weeks: list[dict], sport: Sport, report: Repor
 # ---- Whole-week check ----
 
 WORKOUT_FIELDS = ("id", "date", "category", "type", "kind", "name", "description")
-RUN_FIELDS = WORKOUT_FIELDS + ("distance_km",)
 SESSION_FIELDS = ("id", "date", "category", "name")
 
 
@@ -427,7 +465,8 @@ def missing_fields(week: dict) -> list[str]:
         if s.get("category") != "WORKOUT":
             needed = SESSION_FIELDS
         else:
-            needed = RUN_FIELDS if s.get("type") in sports.SPORTS["Run"].types else WORKOUT_FIELDS
+            sport = sports.sport_of(s.get("type"))
+            needed = WORKOUT_FIELDS + ((sport.field,) if sport and sport.field else ())
         gaps = [k for k in needed if k not in s]
         if gaps:
             errors.append(f"session {i} ({s.get('name', 'unnamed')}) is missing {', '.join(gaps)}")
@@ -480,7 +519,7 @@ def check_week(week: dict, history: list[tuple[dt.date, float]] | None = None,
             continue
         given = history if sport.name == "Run" else None
         sport_history = _history(sport, given, offline, oldest, start, week, weeks_dir, report)
-        planned = [(dt.date.fromisoformat(s["date"]), float(s["distance_km"])) for s in sessions
+        planned = [(dt.date.fromisoformat(s["date"]), float(s[sport.field])) for s in sessions
                    if s.get("category") == "WORKOUT" and s.get("type") in sport.types]
         check_long_runs(sorted(sport_history + baseline_history(plan, sport)), planned, report, sport)
     check_weekly(week, plan, report)
@@ -495,7 +534,7 @@ def check_week(week: dict, history: list[tuple[dt.date, float]] | None = None,
         cleared, reason = True, "no injury score tracked"
     else:
         cleared, reason = score_cleared(scores, start - dt.timedelta(days=1), score_name or "injury")
-    check_gates(sessions, cleared, reason, report)
+    check_gates(sessions, cleared, reason, report, (settings().get("injury_score") or {}).get("sports"))
     if not report.errors:
         report.passes.append(f"Workout text: {_count(workouts)}, one target type each")
     return report
