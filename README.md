@@ -24,6 +24,7 @@ nikol.ai only talks to intervals.icu, so it works with any watch that syncs to i
 
 If your watch's HRV or sleep data is thin, an Oura ring or WHOOP band syncs wellness data to intervals.icu directly.
 Connect your watch to intervals.icu directly, not through Strava: activities imported via Strava are blocked from the intervals.icu API.
+More on which devices work: [watch compatibility with intervals.icu](https://stas.run/en/guides/intervals-icu-watch-compatibility).
 
 ## What you need
 
@@ -65,7 +66,7 @@ The coach's instructions are in `AGENTS.md`, and the coaching rules in `RULES.md
 2. **Plain files and scripts, no third-party tools.**
    Markdown instructions plus standard-library Python work in any agent, with no supply chain, and the API key stays on your computer.
 3. **Maths in code, not in the model.**
-   The most common failures reported with AI coaches are wrong dates, pace arithmetic errors and ramping load too fast, so scripts do all of it (`paces.py` for running, `power.py` for cycling).
+   The most common failures reported with AI coaches are wrong dates, pace arithmetic errors and ramping load too fast (see [Düking et al. 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC10915606), experts rating ChatGPT training plans), so scripts do all of it (`paces.py` for running, `power.py` for cycling).
 4. **A fixed plan, adjusted within bounds.**
    The week-by-week skeleton is set up front.
    Weekly reviews can only move, shorten or swap sessions within the rules, and anything bigger is a logged decision.
@@ -86,19 +87,9 @@ Everything about you lives in `athlete/`, which holds personal health data and i
 Your training data also lives in intervals.icu, and is sent to the AI provider behind your agent while it coaches you.
 Your intervals.icu API key stays on your computer, in the Keychain or an environment variable, and is never written to a file in this repo.
 
-## Tests
+## Contributing
 
-`python3 -m unittest discover -s tests`
-
-## Sources
-
-- [intervals.icu API docs](https://intervals.icu/api-docs.html) and [workout builder syntax](https://forum.intervals.icu/t/workout-builder-syntax-quick-guide/123701)
-- [Pace targets arriving as "No Target"](https://forum.intervals.icu/t/pace-targets-lost-in-garmin-export-for-api-created-running-workouts-steps-arrive-on-watch-as-no-target-parsed-correctly-in-workout-doc/130706) and [mixed pace and HR targets](https://forum.intervals.icu/t/syncing-pace-hr-targets-to-garmin/130238)
-- [COROS: mixed pace and HR intervals](https://forum.intervals.icu/t/coros-integration-mixed-pace-hr-intervals/127171) and [planned workouts on Wahoo](https://forum.intervals.icu/t/upload-planned-workouts-to-wahoo/65949/25)
-- [Watch compatibility with intervals.icu](https://stas.run/en/guides/intervals-icu-watch-compatibility)
-- [Frandsen et al. 2025, single-run spikes and injury](https://pmc.ncbi.nlm.nih.gov/articles/PMC12421110) and [Nielsen et al. 2014, volume progression in novices](https://www.jospt.org/doi/10.2519/jospt.2014.5164)
-- [Düking et al. 2024, experts rating ChatGPT plans](https://pmc.ncbi.nlm.nih.gov/articles/PMC10915606)
-- Prior art: [ClaudeCoach](https://github.com/akselsson/ClaudeCoach), [claude-running-coach](https://github.com/ColinEberhardt/claude-running-coach), [hhopke/intervals-icu-mcp](https://github.com/hhopke/intervals-icu-mcp)
+Want to improve the coach? See [CONTRIBUTING.md](CONTRIBUTING.md) for how the project is put together, how to run the tests and how changes are checked.
 
 ## Licence
 

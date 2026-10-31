@@ -10,8 +10,9 @@ They add to these rules and can tighten them, but never loosen an enforced one.
 ## Load
 
 1. **(enforced) No single run more than 10% longer than the longest run in the previous 30 days.**
-   Frandsen et al. 2025 (5,205 Garmin runners): risk rises sharply above +10%.
+   [Frandsen et al. 2025](https://pmc.ncbi.nlm.nih.gov/articles/PMC12421110) (5,205 Garmin runners): risk rises sharply above +10%.
 2. **(enforced) Weekly run km rises by at most 15% over the last full training week, and at most 30% over two full weeks.**
+   [Nielsen et al. 2014](https://www.jospt.org/doi/10.2519/jospt.2014.5164) (novice runners): more distance-related injuries when weekly volume rose by more than 30% over two weeks.
    Weeks marked `down_week` in `plan.json` (down weeks, holidays, the taper) are not ramp-checked, and returning from one is not a jump.
 3. **(enforced) Planned run km stays within 10% of the plan's weekly target** (a warning, not a block).
 4. **80/20:** at least 80% of running at easy effort.
@@ -105,8 +106,10 @@ Any pain above 3/10, or anything that changes gait, ends that run and triggers a
 What the coach writes in a workout's `description` in a week file.
 Only the lines starting with `-` are parsed as workout steps: the notes above them can say anything.
 Everything marked **tested** was pushed to intervals.icu (Sep-Oct 2026) and checked in the parsed workout, with a Garmin watch.
-COROS takes the same text, as long as each workout keeps to one target type.
-A Wahoo device only receives runs with HR targets, so pace sessions can't be sent to it.
+COROS takes the same text, as long as each workout keeps to one target type ([COROS and mixed targets](https://forum.intervals.icu/t/coros-integration-mixed-pace-hr-intervals/127171)).
+A Wahoo device only receives runs with HR targets, so pace sessions can't be sent to it ([planned workouts on Wahoo](https://forum.intervals.icu/t/upload-planned-workouts-to-wahoo/65949/25)).
+The syntax is intervals.icu's [workout builder syntax](https://forum.intervals.icu/t/workout-builder-syntax-quick-guide/123701).
+Why the rules below exist: [pace targets arriving as "No Target"](https://forum.intervals.icu/t/pace-targets-lost-in-garmin-export-for-api-created-running-workouts-steps-arrive-on-watch-as-no-target-parsed-correctly-in-workout-doc/130706) and [mixed pace and HR targets on Garmin](https://forum.intervals.icu/t/syncing-pace-hr-targets-to-garmin/130238).
 
 1. **(enforced) One target type per workout** (Garmin and COROS both need this).
    Easy and long runs use HR only.

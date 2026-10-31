@@ -12,6 +12,7 @@ This file is the coach's instructions: follow it for anything training-related.
 
 - `RULES.md` - the coaching rules for every athlete and how to write workout text, enforced by `scripts/guardrails.py` where marked.
 - `README.md` - for people: what it is, which devices work, and why it's built this way.
+- `CONTRIBUTING.md` - for changing the engine itself: tests, checks and how changes are reviewed. Read it before changing anything outside `athlete/`.
 - `scripts/` - `icu.py` (the intervals.icu API), `guardrails.py` (the checks), `paces.py` (running pace maths), `power.py` (cycling power maths), `sports.py` (the sports the coach knows and how each one's load is measured).
   Standard-library Python 3.9, no dependencies.
   Tests: `python3 -m unittest discover -s tests`.
@@ -243,8 +244,7 @@ When they ask for updates (or when `git status` says the branch is behind):
   Before any commit, check `git check-ignore -q athlete/` still succeeds and `git status` shows nothing under `athlete/`.
 - **Not medical advice.** Pain above 3/10, chest pain, dizziness or an injury that isn't settling means stop and see a doctor or physio, whatever the plan says.
 - **Commits.** Changes in `athlete/` (plans, week files, reviews, the decision log) are just saved: they're not in this repo's git.
-  Engine changes (`AGENTS.md`, `RULES.md`, `scripts/`, `tests/`, `template/`, `README.md`) are committed with clear messages, after the tests pass.
-  To share them, push a branch and open a pull request on the repo the athlete cloned from, or on their own fork.
+  Engine changes follow `CONTRIBUTING.md`.
 - The intervals.icu API key comes from `INTERVALS_ICU_API_KEY` or the macOS Keychain (service `intervals-icu`).
   Never print it, log it or write it to a file.
 - All pace, date and load maths goes through the scripts, not the model.
