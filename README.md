@@ -59,22 +59,17 @@ Ask things like:
 
 The coach's instructions are in `AGENTS.md`, and the coaching rules in `RULES.md`.
 
-## Why it's built this way
+## Why you can trust it
 
-1. **intervals.icu as the hub.**
-   It's free, has official integrations with the main watch makers, and an open API with a personal key, so one integration covers every supported device.
-   The watch makers' own APIs are business-only or closed.
-2. **Plain files and scripts, no third-party tools.**
-   Markdown instructions plus standard-library Python work in any agent, with no supply chain, and the API key stays on your computer.
-3. **Maths in code, not in the model.**
-   The most common failures reported with AI coaches are wrong dates, pace arithmetic errors and ramping load too fast (see [Düking et al. 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC10915606), experts rating ChatGPT training plans), so scripts do all of it (`paces.py` for running, `power.py` for cycling, `swim.py` for swimming).
-4. **A fixed plan, adjusted within bounds.**
-   The week-by-week skeleton is set up front.
-   Weekly reviews can only move, shorten or swap sessions within the rules, and anything bigger is a logged decision.
-5. **Guardrails before anything is written.**
-   Every week is checked against the rules in `RULES.md` before it reaches the calendar, and verified afterwards.
-6. **State in files and the calendar, never in chat memory.**
-   Every session starts from a fresh read of intervals.icu and the repo, so long conversations can't drift.
+1. **Guardrails before anything reaches your watch.**
+   Every week is checked against the rules in `RULES.md` (load spikes, weekly ramp, rest days, an optional injury score) before it goes on your calendar, and checked again on intervals.icu afterwards.
+2. **Maths in code, not in the model.**
+   The most common failures reported with AI coaches are wrong dates, pace arithmetic errors and ramping load too fast (see [Düking et al. 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC10915606), experts rating ChatGPT training plans), so scripts do all of it.
+3. **A fixed plan, adjusted within bounds.**
+   The week-by-week plan is set up front, and weekly reviews can only move, shorten or swap sessions within the rules.
+   Anything bigger is your decision, and it's logged.
+4. **Your data stays yours.**
+   It lives on your computer and in your intervals.icu account, with no other service in between (see "Privacy").
 
 ## Getting updates
 
