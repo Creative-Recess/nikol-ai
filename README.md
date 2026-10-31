@@ -17,7 +17,7 @@ nikol.ai only talks to intervals.icu, so it works with any watch that syncs to i
 
 | Device | Status | Notes |
 |---|---|---|
-| Garmin | Supported, tested | The most complete data: activities, HRV, sleep, resting HR, and planned workouts with pace or HR targets. Ride workouts with power or HR targets tested on an Edge 840 and a Forerunner 255S. The Garmin Connect app doesn't show the steps of these workouts, but the devices do |
+| Garmin | Supported, tested | The most complete data: activities, HRV, sleep, resting HR, and planned workouts with pace or HR targets. Ride workouts with power or HR targets tested on an Edge 840 and a Forerunner 255S. The Garmin Connect app doesn't show the steps of these workouts, but the devices do. An Edge may keep showing its own Daily Suggested Workout next to them if that can't be turned off |
 | COROS | Supported, not yet tested end to end | Activities, basic wellness, and planned workouts with pace or HR targets. COROS can't take pace and HR targets in the same workout, which the guardrails already prevent. Check the first pushed workout on the watch |
 | Wahoo | Partial | Fine as a bike computer for ride data (ride workouts not yet tested). Running workouts only upload with HR targets, so pace sessions won't reach a Wahoo device |
 | Polar | Not supported | Sends activities but can't receive planned workouts |

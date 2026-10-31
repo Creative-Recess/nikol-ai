@@ -67,7 +67,8 @@ Explain each step in plain words: they may never have used intervals.icu or a te
    After 2 or 3 they restart the agent so it sees the variable.
    Check it works with `python3 scripts/icu.py athlete`.
 5. **Watch settings.** Ask them to turn off the watch's own suggested workouts or plans (e.g. Garmin's Daily Suggested Workout and Garmin Coach, COROS training plans), so they don't compete with the calendar.
-   A bike computer has its own setting: on a Garmin Edge, Training → Workouts → Daily Suggested Workout → the menu (three dots) → Show on Home Screen.
+   A bike computer has its own setting, and on a Garmin Edge it can be hard to find: Garmin's manual says Training → Workouts → Daily Suggested Workout → menu → Show on Home Screen, but on some firmware that menu isn't there.
+   If they can't turn it off, the Edge shows its own suggested workout next to the coach's: tell them to follow the coach's workout from the calendar.
 6. **Athlete folder.** Copy `template/` to `athlete/`.
    `athlete/` is git-ignored, so their health data stays on their computer and is never committed or pushed.
    If they want a history or backup of it, offer to make `athlete/` its own private git repo, or suggest keeping the folder in a backed-up location.
