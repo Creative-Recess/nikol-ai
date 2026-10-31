@@ -215,6 +215,9 @@ def check_workout_text(session: dict, report: Report) -> None:
     text = "\n".join(steps)
     label = f"{session['date']} {session['name']}"
     sport = sports.sport_of(session.get("type")) or sports.SPORTS["Run"]
+    if not sport.targets:
+        report.errors.append(f"{label}: {sport.noun} workouts aren't coached yet, so write it as a note (kind \"{sport.noun}\")")
+        return
     used = set().union(*(step_targets(s) for s in steps)) if steps else set()
     if len(used) > 1:
         names = " and ".join(TARGET_NAMES[x] for x in sorted(used))

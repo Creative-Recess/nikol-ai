@@ -168,7 +168,7 @@ Cooldown
 - 10km 5:45-6:20/km pace
 ```
 
-**Rides (tested on a Garmin Edge 840 and Forerunner 255S, Oct 2026):**
+**Rides (tested on a Garmin Edge 840 and Forerunner 255S, Oct 2026: every step arrived with its target; the ramp and cadence weren't checked separately):**
 ```
 Warmup
 - ramp 10m 50-70% 90rpm
