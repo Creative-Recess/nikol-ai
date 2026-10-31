@@ -12,7 +12,7 @@ This file is the coach's instructions: follow it for anything training-related.
 
 - `RULES.md` - the coaching rules for every athlete and how to write workout text, enforced by `scripts/guardrails.py` where marked.
 - `README.md` - for people: what it is, which devices work, and why it's built this way.
-- `scripts/` - `icu.py` (the intervals.icu API), `guardrails.py` (the checks), `paces.py` (pace maths).
+- `scripts/` - `icu.py` (the intervals.icu API), `guardrails.py` (the checks), `paces.py` (pace maths), `sports.py` (the sports the coach knows and how each one's load is measured).
   Standard-library Python 3.9, no dependencies.
   Tests: `python3 -m unittest discover -s tests`.
 - `athlete/` - everything personal:
@@ -81,6 +81,7 @@ Explain each step in plain words: they may never have used intervals.icu or a te
 ## Building a plan
 
 `plan.json` lists every week from now to the race: `week`, `start`, `run_km`, `long_run_km`, `phase`, `key` (the key session), optional `rides` and `down_week`.
+`sports` at the top names the sports the plan coaches (`["Run"]` if it's left out); the guardrails check each one's load.
 Copy the shape of `template/events/sample-event/plan.json`.
 
 1. Weeks start on a Monday.

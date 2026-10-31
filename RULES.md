@@ -17,7 +17,7 @@ They add to these rules and can tighten them, but never loosen an enforced one.
 4. **80/20:** at least 80% of running at easy effort.
 5. **Spread the runs.**
    Tendons recover and adapt between loading days, so spacing matters more than squeezing in an extra session.
-6. **(enforced) A full rest day every full Monday-Sunday week:** no run, no ride and no leg strength (upper body, mobility and walking are fine).
+6. **(enforced) A full rest day every full Monday-Sunday week:** no run, ride or swim, and no leg strength (upper body, mobility and walking are fine).
    It goes on the calendar as a `recovery` note carrying the week's recovery plan.
    A logged exception (`"exceptions": {"no_rest_day": "..."}`) is only for unusual weeks such as a cycling tour or a training camp.
 

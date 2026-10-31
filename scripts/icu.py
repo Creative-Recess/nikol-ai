@@ -6,7 +6,7 @@ The API key comes from the INTERVALS_ICU_API_KEY environment variable or, on mac
 Usage:
     python3 scripts/icu.py athlete
     python3 scripts/icu.py runs --days 42            # recent runs, one per line
-    python3 scripts/icu.py weeks --days 84           # weekly run km, run count, longest run, ride km
+    python3 scripts/icu.py weeks --days 84           # weekly run km, run count, longest run, ride km, swim km
     python3 scripts/icu.py wellness --days 14        # HRV, resting HR, sleep, injury score
     python3 scripts/icu.py score 2 [--date DATE]     # log the morning injury score (default today)
     python3 scripts/icu.py events 2026-09-28 2026-10-04
@@ -29,11 +29,14 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+import sports
+from sports import Sport
+
 BASE_URL = "https://intervals.icu/api/v1"
 ATHLETE = "0"  # 0 means the athlete that owns the API key
 API_KEY_ENV = "INTERVALS_ICU_API_KEY"
 KEYCHAIN_SERVICE = "intervals-icu"
-RUN_TYPES = {"Run", "VirtualRun", "TrailRun"}
+RUN_TYPES = sports.SPORTS["Run"].types
 EXTERNAL_ID_PREFIX = "nikolai"
 # Cloudflare in front of intervals.icu rejects Python's default User-Agent.
 USER_AGENT = "nikol.ai/2 (personal training coach)"
@@ -129,14 +132,18 @@ def events(oldest: str, newest: str) -> list[dict]:
     return request("GET", f"/athlete/{ATHLETE}/events", {"oldest": oldest, "newest": newest}) or []
 
 
-def run_history(oldest: str, newest: str) -> list[tuple[dt.date, float]]:
-    """Completed runs as (date, km), oldest first."""
-    runs = [
+def history(sport: Sport, oldest: str, newest: str) -> list[tuple[dt.date, float]]:
+    """Completed sessions of one sport as (date, amount in the sport's unit), oldest first."""
+    return sorted(
         (dt.date.fromisoformat(a["start_date_local"][:10]), (a.get("distance") or 0) / 1000)
         for a in activities(oldest, newest)
-        if a.get("type") in RUN_TYPES
-    ]
-    return sorted(runs)
+        if a.get("type") in sport.types
+    )
+
+
+def run_history(oldest: str, newest: str) -> list[tuple[dt.date, float]]:
+    """Completed runs as (date, km), oldest first."""
+    return history(sports.SPORTS["Run"], oldest, newest)
 
 
 # ---- Week files and pushing ----
@@ -201,15 +208,15 @@ def push(week: dict) -> list[str]:
 def overview_events(plan: dict, detailed_starts: set[str]) -> list[dict]:
     """A Monday note per plan week that has no detailed week file yet, plus the race if the plan has one."""
     out = []
+    plan_sports = sports.coached(plan)
     for w in plan["weeks"]:
         if w["start"] in detailed_starts:
             continue
-        long_run = f", long run {w['long_run_km']:g} km" if w.get("long_run_km") else ""
         out.append({
             "category": "NOTE",
             "start_date_local": f"{w['start']}T00:00:00",
             "end_date_local": f"{w['start']}T00:00:00",
-            "name": f"Week {w['week']} ({w['phase']}): {w['run_km']:g} km{long_run}",
+            "name": f"Week {w['week']} ({w['phase']}): {week_summary(w, plan_sports)}",
             "description": "\n".join(
                 [w["key"]] + ([f"Rides: {w['rides']}"] if w.get("rides") else [])
                 + ["Overview only. Detailed workouts are added about 2 weeks ahead."]),
@@ -219,16 +226,34 @@ def overview_events(plan: dict, detailed_starts: set[str]) -> list[dict]:
         return out  # a training block with no race yet
     goal = f"Goal {plan['goal']}." if plan.get("goal") else None
     fallback = f"Anything {plan['fallback']} is a good result." if plan.get("fallback") else None
+    race_type = plan.get("race_type") or plan_sports[0].name
     out.append({
         "category": "RACE_A",
-        "type": "Run",
+        "type": race_type,
         "start_date_local": f"{plan['race_date']}T00:00:00",
         "name": plan.get("event", "Race"),
         "description": " ".join(filter(None, [goal, fallback, plan.get("race_note")])),
-        "distance": plan.get("race_distance_m", 42195),
+        # Older running plans without race_distance_m were marathons.
+        "distance": plan.get("race_distance_m", 42195 if race_type == "Run" else None),
         "external_id": f"{EXTERNAL_ID_PREFIX}-{plan['race_date']}-race",
     })
+    if out[-1]["distance"] is None:
+        del out[-1]["distance"]
     return out
+
+
+def week_summary(w: dict, plan_sports: list[Sport]) -> str:
+    """'27 km, long run 12 km' for a running plan, with one part per coached sport."""
+    parts = []
+    for sport in plan_sports:
+        if not sport.weekly_key or w.get(sport.weekly_key) is None:
+            continue
+        prefix = "" if len(plan_sports) == 1 else f"{sport.noun} "
+        part = f"{prefix}{w[sport.weekly_key]:g} {sport.unit}"
+        if w.get(sport.long_key):
+            part += f", long {sport.noun} {w[sport.long_key]:g} {sport.unit}"
+        parts.append(part)
+    return "; ".join(parts)
 
 
 def push_overview(plan: dict, weeks_dir: Path) -> int:
@@ -303,22 +328,26 @@ def print_runs(days: int) -> None:
 
 def print_weeks(days: int) -> None:
     oldest, newest = _window(days)
-    weeks: dict[dt.date, list[float]] = {}
+    run, ride, swim = (sports.SPORTS[n] for n in ("Run", "Ride", "Swim"))
+    weeks: dict[dt.date, dict[str, float]] = {}
     for a in activities(oldest, newest):
         day = dt.date.fromisoformat(a["start_date_local"][:10])
         monday = day - dt.timedelta(days=day.weekday())
-        w = weeks.setdefault(monday, [0.0, 0, 0.0, 0.0])
+        w = weeks.setdefault(monday, {"run": 0.0, "runs": 0, "longest": 0.0, "ride": 0.0, "swim": 0.0})
         km = (a.get("distance") or 0) / 1000
-        if a.get("type") in RUN_TYPES:
-            w[0] += km
-            w[1] += 1
-            w[2] = max(w[2], km)
-        elif "Ride" in (a.get("type") or ""):
-            w[3] += km
-    print("week        run km  runs  longest  ride km")
+        sport = sports.sport_of(a.get("type"))
+        if sport is run:
+            w["run"] += km
+            w["runs"] += 1
+            w["longest"] = max(w["longest"], km)
+        elif sport is ride:
+            w["ride"] += km
+        elif sport is swim:
+            w["swim"] += km
+    print("week        run km  runs  longest  ride km  swim km")
     for monday in sorted(weeks):
         w = weeks[monday]
-        print(f"{monday}  {w[0]:6.1f}  {w[1]:4d}  {w[2]:7.1f}  {w[3]:7.0f}")
+        print(f"{monday}  {w['run']:6.1f}  {w['runs']:4d}  {w['longest']:7.1f}  {w['ride']:7.0f}  {w['swim']:7.1f}")
 
 
 def print_wellness(days: int) -> None:
